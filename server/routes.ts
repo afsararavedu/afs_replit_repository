@@ -481,37 +481,51 @@ export async function registerRoutes(
         });
       };
 
-      // If no daily_sales exist for this date yet, generate virtual rows from
-      // the previous day's daily_stock snapshot so the table is pre-populated.
-      if (sales.length === 0 && prevDayStock.length > 0) {
-        const virtualRows = prevDayStock.map((stock, idx) => {
-          const orderKey = `${stock.brandNumber}|${normSize(stock.size)}`;
-          const orderAgg = orderNewStk.get(orderKey);
-          const mrpOverride = findMrpOverride(stock.brandNumber, stock.size);
-          return {
-            id: -(idx + 1), // temporary ID — becomes a real DB row on first Save
-            brandNumber: stock.brandNumber,
-            brandName: stock.brandName,
-            size: stock.size,
-            quantityPerCase: stock.quantityPerCase,
-            openingBalanceBottles: stock.totalStockBottles ?? 0,
-            newStockCases: orderAgg ? orderAgg.cases : 0,
-            newStockBottles: orderAgg ? orderAgg.bottles : 0,
-            closingBalanceCases: 0,
-            closingBalanceBottles: 0,
-            soldBottles: 0,
-            mrp: mrpOverride ? mrpOverride.salesMrp : (stock.mrp || "0"),
-            saleValue: "0",
-            totalSaleValue: "0",
-            breakageBottles: 0,
-            totalClosingStock: 0,
-            finalClosingBalance: "0",
-            date: date,
-            isSubmitted: false,
-            createdAt: null,
-          };
-        });
-        return res.json(virtualRows);
+      // If no daily_sales exist for this date yet, generate virtual rows so the
+      // table is always pre-populated.
+      // Source of brands: stock_details (master list, always has all products).
+      // Opening balance per brand: daily_stock[D-1].totalStockBottles (0 if no snapshot yet).
+      // New Stk: from orders whose invoice_date matches selected date.
+      if (sales.length === 0) {
+        const allStock = await storage.getStockDetails();
+        if (allStock.length > 0) {
+          // Build opening balance lookup from previous day's snapshot
+          const openingBalMap = new Map<string, number>();
+          for (const ps of prevDayStock) {
+            const key = `${ps.brandNumber}|${normSize(ps.size)}`;
+            openingBalMap.set(key, ps.totalStockBottles ?? 0);
+          }
+
+          const virtualRows = allStock.map((stock, idx) => {
+            const key = `${stock.brandNumber}|${normSize(stock.size)}`;
+            const openingBalance = openingBalMap.get(key) ?? 0;
+            const orderAgg = orderNewStk.get(key);
+            const mrpOverride = findMrpOverride(stock.brandNumber, stock.size);
+            return {
+              id: -(idx + 1),
+              brandNumber: stock.brandNumber,
+              brandName: stock.brandName,
+              size: stock.size,
+              quantityPerCase: stock.quantityPerCase ?? 12,
+              openingBalanceBottles: openingBalance,
+              newStockCases: orderAgg ? orderAgg.cases : 0,
+              newStockBottles: orderAgg ? orderAgg.bottles : 0,
+              closingBalanceCases: 0,
+              closingBalanceBottles: 0,
+              soldBottles: 0,
+              mrp: mrpOverride ? mrpOverride.salesMrp : (stock.mrp || "0"),
+              saleValue: "0",
+              totalSaleValue: "0",
+              breakageBottles: 0,
+              totalClosingStock: 0,
+              finalClosingBalance: "0",
+              date: date,
+              isSubmitted: false,
+              createdAt: null,
+            };
+          });
+          return res.json(virtualRows);
+        }
       }
 
       const salesWithOverrides = sales.map((sale) => {
