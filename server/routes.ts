@@ -442,11 +442,54 @@ export async function registerRoutes(
     if (date) {
       const sales = await storage.getDailySalesByDate(date);
 
-      // Opening balance: previous day's daily_stock snapshot
+      // Opening balance priority chain for date D:
+      //   1. daily_stock[D-1].totalStockBottles  (saved snapshot — most accurate)
+      //   2. daily_sales[D-1].totalClosingStock   (saved records but no snapshot)
+      //   3. stock_details.totalStockBottles       (current stock — covers "new stock
+      //      received but no sales entered yet" scenario)
       const prevDate = new Date(date);
       prevDate.setDate(prevDate.getDate() - 1);
       const prevDateStr = prevDate.toISOString().split("T")[0];
-      const prevDayStock = await storage.getDailyStockByDate(prevDateStr);
+
+      const [prevDayStock, prevDaySales, allStock] = await Promise.all([
+        storage.getDailyStockByDate(prevDateStr),
+        storage.getDailySalesByDate(prevDateStr),
+        storage.getStockDetails(),
+      ]);
+
+      // Build normalised size helper
+      const normSize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
+
+      // Build TWO opening balance maps:
+      //
+      // openingBalMapStrict: used for EXISTING saved records — only uses
+      //   confirmed historical sources (daily_stock or daily_sales[D-1]).
+      //   Falls back to the record's own stored value (no stock_details).
+      //
+      // openingBalMapFull: used for VIRTUAL rows (no records for this date) —
+      //   adds stock_details as the final fallback so new dates always show
+      //   something meaningful even before the user has saved any sales.
+
+      const openingBalMapStrict = new Map<string, number>();
+      // Level 2: previous day's daily_sales closing stock
+      for (const s of prevDaySales) {
+        const key = `${s.brandNumber}|${normSize(s.size)}`;
+        openingBalMapStrict.set(key, s.totalClosingStock ?? 0);
+      }
+      // Level 1 (highest): previous day's daily_stock snapshot
+      for (const s of prevDayStock) {
+        const key = `${s.brandNumber}|${normSize(s.size)}`;
+        openingBalMapStrict.set(key, s.totalStockBottles ?? 0);
+      }
+
+      // Full map adds stock_details as lowest-priority fallback (for virtual rows)
+      const openingBalMapFull = new Map<string, number>(openingBalMapStrict);
+      for (const s of allStock) {
+        const key = `${s.brandNumber}|${normSize(s.size)}`;
+        if (!openingBalMapFull.has(key)) {
+          openingBalMapFull.set(key, s.totalStockBottles ?? 0);
+        }
+      }
 
       // New Stock (Cs/Btls): aggregate from orders whose invoice_date matches selected date
       const allOrders = await storage.getOrders();
@@ -455,8 +498,6 @@ export async function registerRoutes(
         return norm === date;
       });
 
-      // Build map: brandNumber + normalizedSize → {cases, bottles}
-      const normSize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
       type OrderAgg = { cases: number; bottles: number };
       const orderNewStk = new Map<string, OrderAgg>();
       for (const o of matchingOrders) {
@@ -471,7 +512,6 @@ export async function registerRoutes(
       // Fetch sales MRP overrides
       const salesMrpList = await storage.getSalesMrpDetails();
 
-      // Helper: find MRP override for a brand+size
       const findMrpOverride = (brandNumber: string, size: string) => {
         return salesMrpList.find((m) => {
           if (m.brandNumber !== brandNumber) return false;
@@ -481,24 +521,13 @@ export async function registerRoutes(
         });
       };
 
-      // If no daily_sales exist for this date yet, generate virtual rows so the
-      // table is always pre-populated.
-      // Source of brands: stock_details (master list, always has all products).
-      // Opening balance per brand: daily_stock[D-1].totalStockBottles (0 if no snapshot yet).
-      // New Stk: from orders whose invoice_date matches selected date.
+      // If no daily_sales exist for this date yet, generate virtual rows from
+      // stock_details (master list) so the table is always pre-populated.
       if (sales.length === 0) {
-        const allStock = await storage.getStockDetails();
         if (allStock.length > 0) {
-          // Build opening balance lookup from previous day's snapshot
-          const openingBalMap = new Map<string, number>();
-          for (const ps of prevDayStock) {
-            const key = `${ps.brandNumber}|${normSize(ps.size)}`;
-            openingBalMap.set(key, ps.totalStockBottles ?? 0);
-          }
-
           const virtualRows = allStock.map((stock, idx) => {
             const key = `${stock.brandNumber}|${normSize(stock.size)}`;
-            const openingBalance = openingBalMap.get(key) ?? 0;
+            const openingBalance = openingBalMapFull.get(key) ?? 0;
             const orderAgg = orderNewStk.get(key);
             const mrpOverride = findMrpOverride(stock.brandNumber, stock.size);
             return {
@@ -528,24 +557,21 @@ export async function registerRoutes(
         }
       }
 
+      // Existing records — override opening balance (from historical sources only),
+      // new stock, and MRP from live sources.
+      // If no historical source found (no daily_stock/daily_sales for D-1),
+      // keep the value already stored in the DB record.
       const salesWithOverrides = sales.map((sale) => {
-        // Opening balance from previous day's stock snapshot
-        const prevStock = prevDayStock.find((s) => {
-          if (s.brandNumber !== sale.brandNumber) return false;
-          const sNorm = normSize(s.size);
-          const dNorm = normSize(sale.size);
-          return sNorm === dNorm || sNorm.includes(dNorm) || dNorm.includes(sNorm);
-        });
-
-        // New Stk from matching orders for selected date
-        const orderKey = `${sale.brandNumber}|${normSize(sale.size)}`;
-        const orderAgg = orderNewStk.get(orderKey);
+        const key = `${sale.brandNumber}|${normSize(sale.size)}`;
+        const openingBalance = openingBalMapStrict.has(key)
+          ? openingBalMapStrict.get(key)!
+          : (sale.openingBalanceBottles ?? 0);
+        const orderAgg = orderNewStk.get(key);
         const mrpOverride = findMrpOverride(sale.brandNumber, sale.size);
 
         return {
           ...sale,
-          openingBalanceBottles: prevDayStock.length > 0 ? (prevStock?.totalStockBottles ?? 0) : 0,
-          // New Stk always from orders matching this date (0 if none)
+          openingBalanceBottles: openingBalance,
           newStockCases: orderAgg ? orderAgg.cases : 0,
           newStockBottles: orderAgg ? orderAgg.bottles : 0,
           mrp: mrpOverride ? mrpOverride.salesMrp : sale.mrp,
