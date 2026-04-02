@@ -29,21 +29,10 @@ export default function Reports() {
   const [selectedData, setSelectedData] = useState<any[] | null>(null);
   const [modalTitle, setModalTitle] = useState("");
 
-  // Process Sales Data
-  const salesByDay = sales.reduce((acc: any, sale) => {
-    const day = sale.date ? format(parseISO(sale.date.toString()), "EEE") : "N/A";
-    if (!acc[day]) acc[day] = { name: day, value: 0, items: [] };
-    acc[day].value += Number(sale.saleValue || 0);
-    acc[day].items.push(sale);
-    return acc;
-  }, {});
-
-  const salesData = Object.values(salesByDay);
-
-  // Weekly Sales
+  // Weekly Sales — current week only
   const now = new Date();
-  const weekStart = startOfWeek(now);
-  const weekEnd = endOfWeek(now);
+  const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday start
+  const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
   const weeklySales = sales.filter(sale => {
     if (!sale.date) return false;
     const d = parseISO(sale.date.toString());
@@ -51,6 +40,18 @@ export default function Reports() {
   });
 
   const weeklyTotal = weeklySales.reduce((sum, s) => sum + Number(s.saleValue || 0), 0);
+
+  // Build salesData with all 7 weekdays (Mon–Sun), zero-filled for missing days
+  const DAYS_ORDER = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const weeklySalesByDay = weeklySales.reduce((acc: any, sale) => {
+    const day = sale.date ? format(parseISO(sale.date.toString()), "EEE") : "N/A";
+    if (!acc[day]) acc[day] = { name: day, value: 0, items: [] };
+    acc[day].value = parseFloat((acc[day].value + Number(sale.saleValue || 0)).toFixed(2));
+    acc[day].items.push(sale);
+    return acc;
+  }, {});
+
+  const salesData = DAYS_ORDER.map(day => weeklySalesByDay[day] || { name: day, value: 0, items: [] });
 
   // Stock Distribution
   const stockByCategory = stock.reduce((acc: any, item) => {
@@ -101,8 +102,8 @@ export default function Reports() {
                   <BarChart data={salesData} onClick={(data) => data && handleBarClick(data.activePayload?.[0]?.payload)}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                    <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `₹${val/1000}k`} />
-                    <Tooltip cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }} />
+                    <YAxis axisLine={false} tickLine={false} tickFormatter={(val) => `₹${Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+                    <Tooltip cursor={{ fill: 'rgba(59, 130, 246, 0.1)' }} formatter={(val: any) => [`₹${Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Sales"]} />
                     <Bar dataKey="value" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -124,14 +125,14 @@ export default function Reports() {
                       cx="50%"
                       cy="50%"
                       outerRadius={120}
-                      label
+                      label={({ name, value }) => `${name}: ₹${Number(value).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                       onClick={handlePieClick}
                     >
                       {salesData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip formatter={(val: any) => [`₹${Number(val).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Sales"]} />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
