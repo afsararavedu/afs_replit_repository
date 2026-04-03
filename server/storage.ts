@@ -10,7 +10,7 @@ import {
   type DailyStock,
   type SalesMrpDetail, type InsertSalesMrpDetail,
 } from "@shared/schema";
-import { eq, and, sql, desc, inArray } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, lt } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db } from "./db";
@@ -46,6 +46,7 @@ export interface IStorage {
 
   // Daily Stock Snapshots
   getDailyStockByDate(date: string): Promise<DailyStock[]>;
+  getMostRecentDailyStockBefore(date: string): Promise<DailyStock[]>;
   upsertDailyStockSnapshot(date: string): Promise<void>;
 
   // Sales MRP Overrides
@@ -509,6 +510,18 @@ export class DatabaseStorage implements IStorage {
 
   async getDailyStockByDate(date: string): Promise<DailyStock[]> {
     return await db.select().from(dailyStock).where(eq(dailyStock.date, date));
+  }
+
+  async getMostRecentDailyStockBefore(date: string): Promise<DailyStock[]> {
+    const rows = await db
+      .select()
+      .from(dailyStock)
+      .where(lt(dailyStock.date, date))
+      .orderBy(desc(dailyStock.date))
+      .limit(200);
+    if (rows.length === 0) return [];
+    const mostRecentDate = rows[0].date;
+    return rows.filter((r) => r.date === mostRecentDate);
   }
 
   async upsertDailyStockSnapshot(date: string): Promise<void> {

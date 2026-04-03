@@ -444,6 +444,8 @@ export async function registerRoutes(
 
       // Opening balance priority chain for date D:
       //   1. daily_stock[D-1].totalStockBottles  (saved snapshot — most accurate)
+      //      If D-1 has no snapshot, use the most recent daily_stock before D
+      //      (handles gaps where a day was skipped without saving)
       //   2. daily_sales[D-1].totalClosingStock   (saved records but no snapshot)
       //   3. stock_details.totalStockBottles       (current stock — covers "new stock
       //      received but no sales entered yet" scenario)
@@ -451,11 +453,17 @@ export async function registerRoutes(
       prevDate.setDate(prevDate.getDate() - 1);
       const prevDateStr = prevDate.toISOString().split("T")[0];
 
-      const [prevDayStock, prevDaySales, allStock] = await Promise.all([
+      const [rawPrevDayStock, prevDaySales, allStock] = await Promise.all([
         storage.getDailyStockByDate(prevDateStr),
         storage.getDailySalesByDate(prevDateStr),
         storage.getStockDetails(),
       ]);
+
+      // If no snapshot for D-1, fall back to the most recent available snapshot before D
+      const prevDayStock =
+        rawPrevDayStock.length > 0
+          ? rawPrevDayStock
+          : await storage.getMostRecentDailyStockBefore(date);
 
       // Build normalised size helper
       const normSize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
