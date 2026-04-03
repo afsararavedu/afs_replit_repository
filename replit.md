@@ -37,9 +37,13 @@ BRR Liquor Soft (BRR IT Solutions) is a full-stack sales management dashboard ap
 - Sales page opening balance rule: Op. Bal (Btls) for date D = daily_stock[D-1].total_stock_bottles. If no daily_stock exists for D-1, Op. Bal = 0
 
 ### DailySales-to-Stock Sync
-- Triggered automatically when sales are saved ("Save Sales" button)
-- Matches on: brand_number, brand_name, and daily_sales.size contains stock_details.size
-- Stock fields updated: `stock_in_cases` (from closing_balance_cases), `stock_in_bottles` (from closing_balance_bottles), `total_stock_bottles` (from total_closing_stock)
+- Triggered automatically when sales are saved ("Save Sales" button) for ANY date
+- Matching criteria: brand_number, brand_name, size (contains match), AND quantity_per_case (exact)
+- Update logic: DECREASES stock_details values by the closing balance
+  - `stock_in_cases = MAX(0, stock_in_cases − closing_balance_cases)`
+  - `stock_in_bottles = MAX(0, stock_in_bottles − closing_balance_bottles)`
+  - `total_stock_bottles = new_cases × qty_per_case + new_bottles`
+  - `total_stock_value = total_stock_bottles × mrp`
 
 ### Sales MRP Overrides (sales_mrp_details)
 - `sales_mrp_details` table stores per-brand Sales MRP overrides (brand_number, brand_name, size, qty_per_case, sales_mrp)

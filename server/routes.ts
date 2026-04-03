@@ -678,16 +678,12 @@ export async function registerRoutes(
         result = await storage.bulkUpdateDailySales(input);
       }
 
-      // Only sync stock from today's sales — never overwrite current stock with historical dates
-      const today = new Date().toISOString().split('T')[0];
-      if (!date || date === today) {
-        const stockSync = await storage.syncDailySalesToStock(today);
-        console.log(
-          `Stock sync from sales save: ${stockSync.updatedStockCount} stock rows updated`,
-        );
-      } else {
-        console.log(`Skipping stock sync: save was for historical date ${date}, not today.`);
-      }
+      // Sync stock for the saved date: decrease stock_in_cases / stock_in_bottles
+      // by the closing balance values from this date's daily_sales.
+      const stockSync = await storage.syncDailySalesToStock(effectiveDate);
+      console.log(
+        `Stock sync from sales save (${effectiveDate}): ${stockSync.updatedStockCount} stock rows updated`,
+      );
 
       // Always snapshot closing stock to daily_stock for the saved date
       await storage.upsertDailyStockSnapshot(effectiveDate);

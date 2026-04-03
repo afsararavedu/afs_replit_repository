@@ -448,42 +448,55 @@ export class DatabaseStorage implements IStorage {
   }
 
   async syncDailySalesToStock(date?: string): Promise<{ updatedStockCount: number }> {
-    // Only sync from a specific date's non-submitted records
-    // If date is provided, use that date; otherwise use today
+    // Sync any date's saved sales to stock_details.
+    // Logic: DECREASE stock_in_cases and stock_in_bottles by the daily_sales closing
+    // balance values (closing_balance_cases / closing_balance_bottles).
+    // Matching criteria: brand_number + brand_name + size + quantity_per_case
     const targetDate = date || new Date().toISOString().split('T')[0];
-    
-    // Check if the target date is submitted — do not sync from submitted dates
-    const isSubmitted = await this.isSalesSubmittedForDate(targetDate);
-    if (isSubmitted) {
-      return { updatedStockCount: 0 };
-    }
 
+    // Select ALL sales for this date (submitted or not — the route handles auth)
     const dateSales = await db.select().from(dailySales)
-      .where(and(eq(dailySales.date, targetDate), eq(dailySales.isSubmitted, false)));
+      .where(eq(dailySales.date, targetDate));
     const allStock = await db.select().from(stockDetails);
 
     if (dateSales.length === 0 || allStock.length === 0) {
       return { updatedStockCount: 0 };
     }
 
+    const normStr = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
+
     let updatedStockCount = 0;
 
     for (const stock of allStock) {
       const matchedSale = dateSales.find(sale => {
         if (sale.brandNumber !== stock.brandNumber) return false;
-        if (sale.brandName.trim().toLowerCase() !== stock.brandName.trim().toLowerCase()) return false;
-        const saleSize = sale.size.trim().toLowerCase().replace(/\s+/g, "");
-        const stockSize = stock.size.trim().toLowerCase().replace(/\s+/g, "");
+        if (normStr(sale.brandName) !== normStr(stock.brandName)) return false;
+        const saleSize = normStr(sale.size);
+        const stockSize = normStr(stock.size);
         if (stockSize !== saleSize && !stockSize.includes(saleSize) && !saleSize.includes(stockSize)) return false;
+        // Also match quantity per case
+        if ((sale.quantityPerCase ?? 0) !== (stock.quantityPerCase ?? 0)) return false;
         return true;
       });
 
       if (matchedSale) {
+        const closingCases = matchedSale.closingBalanceCases ?? 0;
+        const closingBottles = matchedSale.closingBalanceBottles ?? 0;
+
+        // Decrease stock by the closing balance values (cannot go below 0)
+        const newStockInCases = Math.max(0, (stock.stockInCases ?? 0) - closingCases);
+        const newStockInBottles = Math.max(0, (stock.stockInBottles ?? 0) - closingBottles);
+        const qtyPerCase = stock.quantityPerCase ?? 1;
+        const newTotalBottles = newStockInCases * qtyPerCase + newStockInBottles;
+        const mrpVal = parseFloat(String(stock.mrp ?? '0')) || 0;
+        const newTotalValue = newTotalBottles * mrpVal;
+
         await db.update(stockDetails)
           .set({
-            stockInCases: matchedSale.closingBalanceCases ?? 0,
-            stockInBottles: matchedSale.closingBalanceBottles ?? 0,
-            totalStockBottles: matchedSale.totalClosingStock ?? 0,
+            stockInCases: newStockInCases,
+            stockInBottles: newStockInBottles,
+            totalStockBottles: newTotalBottles,
+            totalStockValue: newTotalValue.toFixed(2),
           })
           .where(eq(stockDetails.id, stock.id));
 
