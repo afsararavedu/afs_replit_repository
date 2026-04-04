@@ -595,7 +595,8 @@ export async function registerRoutes(
               breakageBottles: 0,
               totalClosingStock,
               finalClosingBalance,
-              date: date,
+              saleDate: date,
+              invoiceDate: stock.invoiceDate ?? null,
               isSubmitted: false,
               createdAt: null,
             };
