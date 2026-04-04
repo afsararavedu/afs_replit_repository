@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -31,14 +31,17 @@ export default function AuthPage() {
     },
   });
 
-  if (user) {
-    if (user.mustResetPassword) {
-      setLocation("/reset-password");
-    } else {
-      setLocation("/");
+  useEffect(() => {
+    if (user) {
+      if (user.mustResetPassword) {
+        setLocation("/reset-password");
+      } else {
+        setLocation("/");
+      }
     }
-    return null;
-  }
+  }, [user]);
+
+  if (user) return null;
 
   const onSubmit = (data: z.infer<typeof loginSchema>) => {
     loginMutation.mutate(data);
