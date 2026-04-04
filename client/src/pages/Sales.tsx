@@ -97,6 +97,13 @@ export default function Sales() {
     },
   });
 
+  const { data: earliestInvoiceDateData } = useQuery<{ invoiceDate: string | null }>({
+    queryKey: ["/api/sales/earliest-invoice-date"],
+  });
+  const earliestInvoiceDate = earliestInvoiceDateData?.invoiceDate
+    ? parse(earliestInvoiceDateData.invoiceDate, "yyyy-MM-dd", new Date())
+    : null;
+
   // Compute summary client-side from localSales so it updates in real-time
   const summary = useMemo<SalesSummary>(() => {
     // Opening Balance Value: include rows where invoice_date is NULL/empty (always include)
@@ -460,6 +467,11 @@ export default function Sales() {
                   const today = new Date();
                   today.setHours(0, 0, 0, 0);
                   if (date > today) return true;
+                  if (earliestInvoiceDate) {
+                    const minDate = new Date(earliestInvoiceDate);
+                    minDate.setHours(0, 0, 0, 0);
+                    if (date < minDate) return true;
+                  }
                   if (isAdmin) return false;
                   const sevenDaysAgo = subDays(today, 6);
                   return date < sevenDaysAgo;

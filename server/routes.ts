@@ -849,6 +849,15 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/sales/earliest-invoice-date", async (_req, res) => {
+    try {
+      const date = await storage.getEarliestInvoiceDate();
+      res.json({ invoiceDate: date });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch earliest invoice date" });
+    }
+  });
+
   app.get("/api/sales/summary", async (req, res) => {
     try {
       const date = (req.query.date as string) || new Date().toISOString().split("T")[0];

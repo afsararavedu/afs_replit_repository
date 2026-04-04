@@ -10,7 +10,7 @@ import {
   type DailyStock,
   type SalesMrpDetail, type InsertSalesMrpDetail,
 } from "@shared/schema";
-import { eq, and, sql, desc, inArray, lt } from "drizzle-orm";
+import { eq, and, sql, desc, asc, inArray, lt } from "drizzle-orm";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
 import { db } from "./db";
@@ -27,6 +27,7 @@ export interface IStorage {
   // Sales
   getDailySales(): Promise<DailySale[]>;
   getDailySalesByDate(date: string): Promise<DailySale[]>;
+  getEarliestInvoiceDate(): Promise<string | null>;
   bulkUpdateDailySales(sales: InsertDailySale[]): Promise<DailySale[]>;
   bulkUpdateDailySalesForDate(sales: InsertDailySale[], date: string): Promise<DailySale[]>;
   submitSalesForDate(date: string): Promise<number>;
@@ -105,6 +106,16 @@ export class DatabaseStorage implements IStorage {
 
   async getDailySalesByDate(date: string): Promise<DailySale[]> {
     return await db.select().from(dailySales).where(eq(dailySales.saleDate, date));
+  }
+
+  async getEarliestInvoiceDate(): Promise<string | null> {
+    const result = await db
+      .select({ invoiceDate: dailySales.invoiceDate })
+      .from(dailySales)
+      .where(sql`${dailySales.invoiceDate} IS NOT NULL`)
+      .orderBy(asc(dailySales.invoiceDate))
+      .limit(1);
+    return result[0]?.invoiceDate ?? null;
   }
 
   async bulkUpdateDailySales(salesData: InsertDailySale[]): Promise<DailySale[]> {
