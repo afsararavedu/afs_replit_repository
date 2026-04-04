@@ -78,6 +78,12 @@ app.use((req, res, next) => {
         ) THEN
           ALTER TABLE stock_details RENAME COLUMN "date" TO "invoice_date";
         END IF;
+        IF NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name='daily_sales' AND column_name='invoice_date'
+        ) THEN
+          ALTER TABLE daily_sales ADD COLUMN "invoice_date" DATE;
+        END IF;
       END $$
     `);
   } catch (e) {

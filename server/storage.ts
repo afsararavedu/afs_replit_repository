@@ -408,6 +408,7 @@ export class DatabaseStorage implements IStorage {
             openingBalanceBottles: stock.totalStockBottles ?? 0,
             newStockCases: stock.stockInCases ?? 0,
             newStockBottles: stock.stockInBottles ?? 0,
+            invoiceDate: stock.invoiceDate ?? null,
           })
           .where(and(eq(dailySales.id, matchedSale.id), eq(dailySales.isSubmitted, false)));
 
@@ -433,12 +434,14 @@ export class DatabaseStorage implements IStorage {
             totalClosingStock: 0,
             finalClosingBalance: '0',
             saleDate: today,
+            invoiceDate: stock.invoiceDate ?? null,
           }).onConflictDoUpdate({
             target: [dailySales.brandNumber, dailySales.size, dailySales.saleDate],
             set: {
               openingBalanceBottles: stock.totalStockBottles ?? 0,
               newStockCases: stock.stockInCases ?? 0,
               newStockBottles: stock.stockInBottles ?? 0,
+              invoiceDate: stock.invoiceDate ?? null,
             },
           }).returning();
           if (created) {

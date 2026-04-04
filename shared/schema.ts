@@ -26,6 +26,7 @@ export const dailySales = pgTable("daily_sales", {
   totalClosingStock: integer("total_closing_stock").default(0),
   finalClosingBalance: numeric("final_closing_balance").default('0'),
   saleDate: date("sale_date").defaultNow(),
+  invoiceDate: date("invoice_date"),
   isSubmitted: boolean("is_submitted").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
