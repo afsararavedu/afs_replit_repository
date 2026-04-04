@@ -11,6 +11,8 @@ import {
   CheckCircle,
   Send,
   Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { type DailySale, type ShopDetail, type Order } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
@@ -436,7 +438,24 @@ export default function Sales() {
           <Store className="w-5 h-5 text-muted-foreground" />
           <h2 className="text-xl font-semibold text-foreground">{shopName}</h2>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1">
+          {/* Previous Day Button */}
+          <button
+            data-testid="button-prev-date"
+            onClick={() => {
+              const d = new Date(selectedDate);
+              d.setDate(d.getDate() - 1);
+              const prev = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+              const minDate = earliestInvoiceDate ? format(earliestInvoiceDate, "yyyy-MM-dd") : null;
+              if (!minDate || prev >= minDate) setSelectedDate(prev);
+            }}
+            disabled={earliestInvoiceDate ? selectedDate <= format(earliestInvoiceDate, "yyyy-MM-dd") : false}
+            className="p-2 rounded-lg border border-border bg-card hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Previous day"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+
           <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
             <PopoverTrigger asChild>
               <button
@@ -475,6 +494,24 @@ export default function Sales() {
               />
             </PopoverContent>
           </Popover>
+
+          {/* Next Day Button */}
+          <button
+            data-testid="button-next-date"
+            onClick={() => {
+              const d = new Date(selectedDate);
+              d.setDate(d.getDate() + 1);
+              const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+              const today = format(new Date(), "yyyy-MM-dd");
+              if (next <= today) setSelectedDate(next);
+            }}
+            disabled={selectedDate >= format(new Date(), "yyyy-MM-dd")}
+            className="p-2 rounded-lg border border-border bg-card hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="Next day"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+
           {isSubmitted && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-700 text-sm font-medium dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-400" data-testid="status-submitted">
               <Lock className="w-4 h-4" />
