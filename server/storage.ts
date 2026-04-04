@@ -147,6 +147,9 @@ export class DatabaseStorage implements IStorage {
         .onConflictDoUpdate({
           target: [dailySales.brandNumber, dailySales.size, dailySales.saleDate],
           set: {
+            openingBalanceBottles: sale.openingBalanceBottles,
+            newStockCases: sale.newStockCases,
+            newStockBottles: sale.newStockBottles,
             closingBalanceCases: sale.closingBalanceCases,
             closingBalanceBottles: sale.closingBalanceBottles,
             soldBottles: sale.soldBottles,
@@ -156,6 +159,7 @@ export class DatabaseStorage implements IStorage {
             totalClosingStock: sale.totalClosingStock,
             finalClosingBalance: sale.finalClosingBalance,
             mrp: sale.mrp,
+            invoiceDate: sale.invoiceDate,
           }
         })
         .returning();
