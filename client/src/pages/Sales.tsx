@@ -99,14 +99,18 @@ export default function Sales() {
 
   // Compute summary client-side from localSales so it updates in real-time
   const summary = useMemo<SalesSummary>(() => {
-    const openingBalanceValue = (prevDaySales || []).reduce(
-      (acc, s) => acc + (parseFloat(s.finalClosingBalance as string) || 0),
-      0
-    );
+    // Opening Balance Value: only include D-1 rows where D-1 >= invoice_date
+    // (stock must have arrived by D-1 to count; no invoice_date = no restriction)
+    const openingBalanceValue = (prevDaySales || []).reduce((acc, s) => {
+      if (s.invoiceDate && prevDateStr < s.invoiceDate) return acc;
+      return acc + (parseFloat(s.finalClosingBalance as string) || 0);
+    }, 0);
 
     // Opening Stock in bottles per type = previous day's totalClosingStock per type
+    // Same invoice_date gate applies
     const categories: Record<string, { opening: number; newStock: number; sold: number; closing: number }> = {};
     for (const s of (prevDaySales || [])) {
+      if (s.invoiceDate && prevDateStr < s.invoiceDate) continue;
       const pType = orderTypeMap[s.brandNumber] || "Other";
       if (!categories[pType]) {
         categories[pType] = { opening: 0, newStock: 0, sold: 0, closing: 0 };
