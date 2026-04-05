@@ -58,6 +58,8 @@ export default function Stock() {
       return await res.json();
     },
     enabled: !isToday,
+    staleTime: 0,        // Always fetch fresh — never serve a cached past result
+    gcTime: 0,           // Don't keep old results in memory across date switches
   });
 
 
