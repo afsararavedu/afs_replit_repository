@@ -97,6 +97,8 @@ export default function Sales() {
       if (!res.ok) return [];
       return res.json();
     },
+    staleTime: 0,  // Always fetch fresh previous day data
+    gcTime: 0,
   });
 
   const { data: earliestInvoiceDateData } = useQuery<{ invoiceDate: string | null }>({
