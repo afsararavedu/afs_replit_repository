@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "./storage";
+import { pool } from "./db";
 import { api } from "@shared/routes";
 import type { DailySale } from "@shared/schema";
 import { z } from "zod";
@@ -1152,6 +1153,117 @@ export async function registerRoutes(
       }
     }
   }
+
+  // ── Reports APIs ──────────────────────────────────────────────────────
+  app.get("/api/reports/sales", async (_req, res) => {
+    try {
+      const [trendRows, kpiRows, topByBottles, topByValue] = await Promise.all([
+        pool.query(`
+          SELECT
+            sale_date::text AS date,
+            SUM(sold_bottles)::int            AS total_bottles_sold,
+            ROUND(SUM(sale_value::numeric),2) AS total_revenue,
+            COUNT(DISTINCT brand_number)::int AS brands_count,
+            BOOL_OR(is_submitted)             AS is_submitted
+          FROM daily_sales
+          GROUP BY sale_date
+          ORDER BY sale_date ASC
+        `),
+        pool.query(`
+          SELECT
+            ROUND(SUM(sale_value::numeric),2)   AS total_revenue,
+            SUM(sold_bottles)::int               AS total_bottles_sold,
+            COUNT(DISTINCT sale_date)::int        AS total_days,
+            MAX(sale_date)::text                  AS latest_date,
+            ROUND(MAX(daily_total),2)             AS best_day_revenue,
+            (SELECT sale_date::text FROM (
+              SELECT sale_date, SUM(sale_value::numeric) daily_total
+              FROM daily_sales GROUP BY sale_date ORDER BY daily_total DESC LIMIT 1
+            ) t2)                                 AS best_day_date
+          FROM daily_sales,
+               LATERAL (SELECT SUM(sale_value::numeric) daily_total
+                         FROM daily_sales d2 WHERE d2.sale_date = daily_sales.sale_date) _lat
+        `),
+        pool.query(`
+          SELECT brand_number, brand_name, size,
+                 SUM(sold_bottles)::int               AS sold,
+                 ROUND(SUM(sale_value::numeric),2)    AS value
+          FROM daily_sales
+          GROUP BY brand_number, brand_name, size
+          ORDER BY sold DESC LIMIT 10
+        `),
+        pool.query(`
+          SELECT brand_number, brand_name, size,
+                 SUM(sold_bottles)::int               AS sold,
+                 ROUND(SUM(sale_value::numeric),2)    AS value
+          FROM daily_sales
+          GROUP BY brand_number, brand_name, size
+          ORDER BY value DESC LIMIT 10
+        `),
+      ]);
+      res.json({
+        kpi: kpiRows.rows[0] || {},
+        trend: trendRows.rows,
+        topBrandsByBottles: topByBottles.rows,
+        topBrandsByValue: topByValue.rows,
+      });
+    } catch (err: any) {
+      console.error("Sales report error:", err.message);
+      res.status(500).json({ message: "Failed to generate sales report" });
+    }
+  });
+
+  app.get("/api/reports/stock", async (_req, res) => {
+    try {
+      const [trendRows, kpiRows, topByValue, topByBottles] = await Promise.all([
+        pool.query(`
+          SELECT
+            date::text                              AS date,
+            SUM(total_stock_bottles)::int           AS total_bottles,
+            ROUND(SUM(total_stock_value::numeric),2) AS total_value
+          FROM daily_stock
+          GROUP BY date
+          ORDER BY date ASC
+        `),
+        pool.query(`
+          SELECT
+            (SELECT ROUND(SUM(total_stock_value::numeric),2) FROM daily_stock
+             WHERE date = (SELECT MAX(date) FROM daily_stock)) AS latest_total_value,
+            (SELECT SUM(total_stock_bottles)::int FROM daily_stock
+             WHERE date = (SELECT MAX(date) FROM daily_stock)) AS latest_total_bottles,
+            COUNT(DISTINCT date)::int                           AS total_dates,
+            MAX(date)::text                                     AS latest_date,
+            MIN(date)::text                                     AS earliest_date
+          FROM daily_stock
+        `),
+        pool.query(`
+          SELECT brand_number, brand_name, size,
+                 total_stock_bottles                             AS bottles,
+                 ROUND(total_stock_value::numeric,2)            AS value
+          FROM daily_stock
+          WHERE date = (SELECT MAX(date) FROM daily_stock)
+          ORDER BY value DESC LIMIT 10
+        `),
+        pool.query(`
+          SELECT brand_number, brand_name, size,
+                 total_stock_bottles                             AS bottles,
+                 ROUND(total_stock_value::numeric,2)            AS value
+          FROM daily_stock
+          WHERE date = (SELECT MAX(date) FROM daily_stock)
+          ORDER BY bottles DESC LIMIT 10
+        `),
+      ]);
+      res.json({
+        kpi: kpiRows.rows[0] || {},
+        trend: trendRows.rows,
+        topBrandsByValue: topByValue.rows,
+        topBrandsByBottles: topByBottles.rows,
+      });
+    } catch (err: any) {
+      console.error("Stock report error:", err.message);
+      res.status(500).json({ message: "Failed to generate stock report" });
+    }
+  });
 
   return httpServer;
 }
