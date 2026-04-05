@@ -961,10 +961,13 @@ export async function registerRoutes(
       const prevDateStr = prevDate.toISOString().split("T")[0];
       const prevSales = await storage.getDailySalesByDate(prevDateStr);
 
-      // Opening Balance Value = sum of D-1's finalClosingBalance
-      // Simple rule: if D-1 has saved sales, use their closing balance; else 0
+      // Opening Balance Value = sum of D-1's (finalClosingBalance bottles × MRP)
       const openingBalanceValue = prevSales.reduce(
-        (acc, s) => acc + ((s.finalClosingBalance as number) || 0),
+        (acc, s) => {
+          const bottles = (s.finalClosingBalance as number) || 0;
+          const mrp = parseFloat(s.mrp as string) || 0;
+          return acc + bottles * mrp;
+        },
         0
       );
 

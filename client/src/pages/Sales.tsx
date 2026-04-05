@@ -114,10 +114,14 @@ export default function Sales() {
 
   // Compute summary client-side from localSales so it updates in real-time
   const summary = useMemo<SalesSummary>(() => {
-    // Opening Balance Value = sum of D-1's finalClosingBalance
-    // Simple rule: if D-1 has saved sales use their closing balance; else 0
+    // Opening Balance Value = sum of D-1's (finalClosingBalance bottles × MRP)
+    // finalClosingBalance is in bottles; multiplying by MRP gives the stock value
     const openingBalanceValue = (prevDaySales || []).reduce(
-      (acc, s) => acc + ((s.finalClosingBalance as number) || 0),
+      (acc, s) => {
+        const bottles = (s.finalClosingBalance as number) || 0;
+        const mrp = parseFloat(s.mrp as string) || 0;
+        return acc + bottles * mrp;
+      },
       0
     );
 
