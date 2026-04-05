@@ -38,6 +38,14 @@ export default function Stock() {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const isToday = stockViewDate === getTodayLocal();
 
+  // Latest invoice date from orders — caps the calendar so future dates are disabled
+  const { data: latestOrderDateData } = useQuery<{ invoiceDate: string | null }>({
+    queryKey: ["/api/orders/latest-invoice-date"],
+  });
+  const latestOrderDate = latestOrderDateData?.invoiceDate
+    ? parse(latestOrderDateData.invoiceDate, "yyyy-MM-dd", new Date())
+    : new Date();
+
   // Current stock (editable, always today's live data)
   const { data: stock, isLoading } = useQuery<StockDetail[]>({
     queryKey: [api.stock.list.path],
@@ -151,10 +159,11 @@ export default function Stock() {
                       setCurrentPage(1);
                     }
                   }}
+                  toDate={latestOrderDate}
                   disabled={(date) => {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    return date > today;
+                    const cap = new Date(latestOrderDate);
+                    cap.setHours(23, 59, 59, 999);
+                    return date > cap;
                   }}
                   initialFocus
                 />

@@ -108,23 +108,28 @@ export default function Sales() {
     ? parse(earliestInvoiceDateData.invoiceDate, "yyyy-MM-dd", new Date())
     : null;
 
-  // Latest order invoice date — used to auto-default the date picker
+  // Latest order invoice date — used to auto-default and cap the date picker
   const { data: latestOrderDateData } = useQuery<{ invoiceDate: string | null }>({
     queryKey: ["/api/orders/latest-invoice-date"],
   });
+  const latestOrderDate = latestOrderDateData?.invoiceDate
+    ? parse(latestOrderDateData.invoiceDate, "yyyy-MM-dd", new Date())
+    : new Date();
+  const latestOrderDateStr = latestOrderDateData?.invoiceDate ?? format(new Date(), "yyyy-MM-dd");
 
-  // Auto-switch to the latest order invoice date if today has no data
+  // Auto-switch to the latest order invoice date if today is beyond the last invoice
   useEffect(() => {
     if (autoDateApplied) return;
-    if (isLoading) return;
+    if (!latestOrderDateData) return; // wait until we know the latest invoice date
     const today = getTodayLocal();
     if (selectedDate !== today) return; // user already changed date manually
-    const latestDate = latestOrderDateData?.invoiceDate;
-    if (latestDate && latestDate !== today && (!sales || sales.length === 0)) {
+    const latestDate = latestOrderDateData.invoiceDate;
+    if (latestDate && latestDate < today) {
+      // Today is past the latest invoice — snap to the latest invoice date
       setSelectedDate(latestDate);
       setAutoDateApplied(true);
     }
-  }, [isLoading, sales, latestOrderDateData, selectedDate, autoDateApplied]);
+  }, [latestOrderDateData, selectedDate, autoDateApplied]);
 
   // Compute summary client-side from localSales so it updates in real-time
   const summary = useMemo<SalesSummary>(() => {
@@ -509,8 +514,11 @@ export default function Sales() {
                   }
                 }}
                 fromDate={earliestInvoiceDate ?? undefined}
-                toDate={new Date()}
+                toDate={latestOrderDate}
                 disabled={(date) => {
+                  const cap = new Date(latestOrderDate);
+                  cap.setHours(23, 59, 59, 999);
+                  if (date > cap) return true;
                   if (isAdmin) return false;
                   const sevenDaysAgo = subDays(new Date(), 6);
                   sevenDaysAgo.setHours(0, 0, 0, 0);
@@ -528,10 +536,9 @@ export default function Sales() {
               const d = new Date(selectedDate);
               d.setDate(d.getDate() + 1);
               const next = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-              const today = format(new Date(), "yyyy-MM-dd");
-              if (next <= today) setSelectedDate(next);
+              if (next <= latestOrderDateStr) setSelectedDate(next);
             }}
-            disabled={selectedDate >= format(new Date(), "yyyy-MM-dd")}
+            disabled={selectedDate >= latestOrderDateStr}
             className="p-2 rounded-lg border border-border bg-card hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="Next day"
           >
