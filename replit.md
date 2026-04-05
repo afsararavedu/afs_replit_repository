@@ -35,9 +35,10 @@ BRR Liquor Soft (BRR IT Solutions) is a full-stack sales management dashboard ap
 - API endpoint: GET /api/daily-stock?date=YYYY-MM-DD returns the snapshot for that date
 - Stock page date picker: selecting today shows current (editable) stock_details; selecting a past date shows the daily_stock snapshot (read-only)
 - Sales page opening balance rule: Op. Bal (Btls) for date D = daily_stock[D-1].total_stock_bottles
-  - If no daily_stock exists for D-1 (day was skipped/not saved), uses the MOST RECENT daily_stock snapshot before D
-  - This handles gaps automatically: if 30-Mar has no snapshot but 29-Mar does, then 31-Mar will use 29-Mar's values
-  - Only falls back to Op. Bal = 0 if no snapshot exists at all before date D
+  - Matching uses 4-field key: Brand No + Brand Name + Size + Qty/Cs (same as Stock page "Tot Stk (Btls)")
+  - If no daily_stock exists for D-1, falls back to daily_sales[D-1].totalClosingStock (same 4-field match)
+  - If neither exists, falls back to stock_details.totalStockBottles minus today's orders
+  - Order aggregation (New Stock) still uses 2-field key (Brand No + Size) since orders lack brandName/qty
 
 ### DailySales-to-Stock Sync
 - Triggered automatically when sales are saved ("Save Sales" button) for ANY date

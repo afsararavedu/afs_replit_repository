@@ -484,8 +484,18 @@ export async function registerRoutes(
           ? rawPrevDayStock
           : await storage.getMostRecentDailyStockBefore(date);
 
-      // Build normalised size helper
+      // Build normalised helpers
       const normSize = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
+      const normStr  = (s: string) => s.trim().toLowerCase().replace(/\s+/g, "");
+
+      // 4-field key: Brand No | Brand Name | Size | Qty/Cs
+      // Used for opening balance matching across daily_stock, daily_sales, stock_details
+      const normKey4 = (brandNo: string, brandName: string, size: string, qtyPerCase: number) =>
+        `${brandNo}|${normStr(brandName)}|${normSize(size)}|${qtyPerCase}`;
+
+      // 2-field key: Brand No | Size (used for order aggregation only — orders lack brandName/qty reliably)
+      const normKey2 = (brandNo: string, size: string) =>
+        `${brandNo}|${normSize(size)}`;
 
       // Step 1: Build orderNewStk first (needed for opening balance calculation below)
       // New Stock (Cs/Btls): aggregate from orders whose invoice_date matches selected date
@@ -499,49 +509,48 @@ export async function registerRoutes(
       const orderNewStk = new Map<string, OrderAgg>();
       for (const o of matchingOrders) {
         const size = extractSizeFromPackSize(o.packSize);
-        const key = `${o.brandNumber}|${normSize(size)}`;
+        const key = normKey2(o.brandNumber, size);
         const existing = orderNewStk.get(key) || { cases: 0, bottles: 0 };
         existing.cases += o.qtyCasesDelivered ?? 0;
         existing.bottles += o.qtyBottlesDelivered ?? 0;
         orderNewStk.set(key, existing);
       }
 
-      // Step 2: Build TWO opening balance maps:
+      // Step 2: Build TWO opening balance maps keyed on all 4 fields
+      // (Brand No + Brand Name + Size + Qty/Cs) to match exactly what the
+      // Stock page shows for D-1 ("Tot Stk (Btls)").
       //
-      // openingBalMapStrict: used for EXISTING saved records — only uses
-      //   confirmed historical sources (daily_stock or daily_sales[D-1]).
-      //   Falls back to the record's own stored value (no stock_details).
+      // openingBalMapStrict: EXISTING saved records — only confirmed historical
+      //   sources (daily_stock[D-1] → daily_sales[D-1]).  No stock_details fallback.
       //
-      // openingBalMapFull: used for VIRTUAL rows (no records for this date) —
-      //   adds stock_details as the final fallback so new dates always show
-      //   something meaningful even before the user has saved any sales.
-      //   stock_details already includes today's received orders, so subtract
-      //   them to get the stock at the START of the day (true opening balance).
+      // openingBalMapFull: VIRTUAL rows — adds stock_details as final fallback so
+      //   new dates always show something before the user saves any sales.
 
       const openingBalMapStrict = new Map<string, number>();
       // Level 2: previous day's daily_sales closing stock
       for (const s of prevDaySales) {
-        const key = `${s.brandNumber}|${normSize(s.size)}`;
+        const key = normKey4(s.brandNumber, s.brandName, s.size, s.quantityPerCase ?? 0);
         openingBalMapStrict.set(key, s.totalClosingStock ?? 0);
       }
-      // Level 1 (highest): previous day's daily_stock snapshot
+      // Level 1 (highest): previous day's daily_stock snapshot — "Tot Stk (Btls)"
       for (const s of prevDayStock) {
-        const key = `${s.brandNumber}|${normSize(s.size)}`;
+        const key = normKey4(s.brandNumber, s.brandName, s.size, s.quantityPerCase ?? 0);
         openingBalMapStrict.set(key, s.totalStockBottles ?? 0);
       }
 
       // Full map: openingBalMapStrict + stock_details fallback (minus today's orders)
       const openingBalMapFull = new Map<string, number>(openingBalMapStrict);
       for (const s of allStock) {
-        const key = `${s.brandNumber}|${normSize(s.size)}`;
-        if (!openingBalMapFull.has(key)) {
+        const key4 = normKey4(s.brandNumber, s.brandName ?? "", s.size, s.quantityPerCase ?? 0);
+        if (!openingBalMapFull.has(key4)) {
           const qtyPerCase = s.quantityPerCase ?? 12;
-          const todayOrders = orderNewStk.get(key);
+          const orderKey = normKey2(s.brandNumber, s.size);
+          const todayOrders = orderNewStk.get(orderKey);
           const todayOrderBottles = todayOrders
             ? todayOrders.cases * qtyPerCase + todayOrders.bottles
             : 0;
           const openingBalance = Math.max(0, (s.totalStockBottles ?? 0) - todayOrderBottles);
-          openingBalMapFull.set(key, openingBalance);
+          openingBalMapFull.set(key4, openingBalance);
         }
       }
 
@@ -562,9 +571,10 @@ export async function registerRoutes(
       if (sales.length === 0) {
         if (allStock.length > 0) {
           const virtualRows = allStock.map((stock, idx) => {
-            const key = `${stock.brandNumber}|${normSize(stock.size)}`;
-            const openingBalance = openingBalMapFull.get(key) ?? 0;
-            const orderAgg = orderNewStk.get(key);
+            const key4 = normKey4(stock.brandNumber, stock.brandName ?? "", stock.size, stock.quantityPerCase ?? 0);
+            const orderKey = normKey2(stock.brandNumber, stock.size);
+            const openingBalance = openingBalMapFull.get(key4) ?? 0;
+            const orderAgg = orderNewStk.get(orderKey);
             const mrpOverride = findMrpOverride(stock.brandNumber, stock.size);
             const qtyPerCase = stock.quantityPerCase ?? 12;
             const newStockCases = orderAgg ? orderAgg.cases : 0;
@@ -603,11 +613,12 @@ export async function registerRoutes(
       // If no historical source found (no daily_stock/daily_sales for D-1),
       // keep the value already stored in the DB record.
       const salesWithOverrides = sales.map((sale) => {
-        const key = `${sale.brandNumber}|${normSize(sale.size)}`;
-        const openingBalance = openingBalMapStrict.has(key)
-          ? openingBalMapStrict.get(key)!
+        const key4 = normKey4(sale.brandNumber, sale.brandName, sale.size, sale.quantityPerCase ?? 0);
+        const orderKey = normKey2(sale.brandNumber, sale.size);
+        const openingBalance = openingBalMapStrict.has(key4)
+          ? openingBalMapStrict.get(key4)!
           : (sale.openingBalanceBottles ?? 0);
-        const orderAgg = orderNewStk.get(key);
+        const orderAgg = orderNewStk.get(orderKey);
         const mrpOverride = findMrpOverride(sale.brandNumber, sale.size);
 
         return {
