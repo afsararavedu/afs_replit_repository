@@ -159,11 +159,15 @@ export default function Stock() {
                       setCurrentPage(1);
                     }
                   }}
-                  toDate={latestOrderDate}
+                  fromDate={latestOrderDate}
+                  toDate={new Date()}
                   disabled={(date) => {
-                    const cap = new Date(latestOrderDate);
-                    cap.setHours(23, 59, 59, 999);
-                    return date > cap;
+                    const floor = new Date(latestOrderDate);
+                    floor.setHours(0, 0, 0, 0);
+                    if (date < floor) return true;
+                    const today = new Date();
+                    today.setHours(23, 59, 59, 999);
+                    return date > today;
                   }}
                   initialFocus
                 />
