@@ -279,7 +279,16 @@ export default function Sales() {
   // Sync local state when data loads or date changes
   useEffect(() => {
     if (sales) {
-      setLocalSales(sales);
+      // Recompute finalClosingBalance using the current formula (TOT CLS STK - BREAKAGE)
+      const recalculated = sales.map((s) => {
+        const totalClosingStock = s.totalClosingStock ?? 0;
+        const breakage = s.breakageBottles ?? 0;
+        return {
+          ...s,
+          finalClosingBalance: (totalClosingStock - breakage).toFixed(2),
+        };
+      });
+      setLocalSales(recalculated);
     }
   }, [sales]);
 
@@ -317,7 +326,7 @@ export default function Sales() {
 
           const saleValue = soldBottles * mrp;
           const totalClosingStock = closingTotal;
-          const finalClosingBalance = totalClosingStock * mrp;
+          const finalClosingBalance = totalClosingStock - breakage;
 
           return {
             ...updatedItem,
@@ -713,8 +722,8 @@ export default function Sales() {
                 <th className="table-header w-14 text-center border-r border-border">Sold Btls</th>
                 <th className="table-header w-14 text-center border-r border-border">MRP</th>
                 <th className="table-header w-20 text-right font-bold text-primary border-r border-border">Sale Value</th>
-                <th className="table-header w-14 text-center border-r border-border">Breakage</th>
                 <th className="table-header w-16 text-center border-r border-border">Tot Cls Stk</th>
+                <th className="table-header w-14 text-center border-r border-border">Breakage</th>
                 <th className="table-header w-20 text-center">Final Cls Bal</th>
               </tr>
             </thead>
@@ -813,6 +822,9 @@ export default function Sales() {
                         {parseFloat(item.saleValue as string || '0') < 0 && <span className="mr-1">⚠</span>}
                         ₹{item.saleValue}
                       </td>
+                      <td className="table-cell text-center font-mono border-r border-border">
+                        {item.totalClosingStock}
+                      </td>
                       <td className="table-cell p-1 border-r border-border">
                         {isSubmitted && !isAdmin ? (
                           <span className="block w-full text-center py-1">{item.breakageBottles || 0}</span>
@@ -828,9 +840,6 @@ export default function Sales() {
                             className="w-full text-center p-1 rounded-md border border-input focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none"
                           />
                         )}
-                      </td>
-                      <td className="table-cell text-center font-mono border-r border-border">
-                        {item.totalClosingStock}
                       </td>
                       <td className="table-cell text-center font-mono">
                         {parseFloat(item.finalClosingBalance as string || '0').toFixed(2)}
