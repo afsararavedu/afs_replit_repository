@@ -615,7 +615,7 @@ export class DatabaseStorage implements IStorage {
     // Batch UPDATE using raw SQL VALUES clause (single round-trip)
     if (updateRows.length > 0) {
       const placeholders = updateRows.map((_, i) =>
-        `($${i * 7 + 1}::int, $${i * 7 + 2}::int, $${i * 7 + 3}::int, $${i * 7 + 4}::int, $${i * 7 + 5}::int, $${i * 7 + 6}::text, $${i * 7 + 7}::text)`
+        `($${i * 7 + 1}::int, $${i * 7 + 2}::int, $${i * 7 + 3}::int, $${i * 7 + 4}::int, $${i * 7 + 5}::int, $${i * 7 + 6}::numeric, $${i * 7 + 7}::numeric)`
       ).join(', ');
       const params = updateRows.flatMap(u => [u.id, u.qty, u.cases, u.btls, u.totBtls, u.totVal, u.mrpStr]);
       await pool.query(
