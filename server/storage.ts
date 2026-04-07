@@ -11,9 +11,9 @@ import {
   type SalesMrpDetail, type InsertSalesMrpDetail,
 } from "@shared/schema";
 import { eq, and, sql, desc, asc, inArray, lt } from "drizzle-orm";
+import { pool, db } from "./db";
 import session from "express-session";
 import connectPg from "connect-pg-simple";
-import { db } from "./db";
 
 const PostgresSessionStore = connectPg(session);
 
@@ -121,54 +121,56 @@ export class DatabaseStorage implements IStorage {
   }
 
   async bulkUpdateDailySales(salesData: InsertDailySale[]): Promise<DailySale[]> {
-    const results: DailySale[] = [];
+    if (salesData.length === 0) return [];
     const today = new Date().toISOString().split('T')[0];
-    
-    for (const sale of salesData) {
-      const [updated] = await db.insert(dailySales)
-        .values({ ...sale, saleDate: today })
-        .onConflictDoUpdate({
-          target: [dailySales.brandNumber, dailySales.size, dailySales.saleDate],
-          set: {
-            ...sale,
-            saleDate: today,
-          }
-        })
-        .returning();
-      results.push(updated);
-    }
-    return results;
+    return await db.insert(dailySales)
+      .values(salesData.map(sale => ({ ...sale, saleDate: today })))
+      .onConflictDoUpdate({
+        target: [dailySales.brandNumber, dailySales.size, dailySales.saleDate],
+        set: {
+          quantityPerCase: sql`excluded.quantity_per_case`,
+          openingBalanceBottles: sql`excluded.opening_balance_bottles`,
+          newStockCases: sql`excluded.new_stock_cases`,
+          newStockBottles: sql`excluded.new_stock_bottles`,
+          closingBalanceCases: sql`excluded.closing_balance_cases`,
+          closingBalanceBottles: sql`excluded.closing_balance_bottles`,
+          soldBottles: sql`excluded.sold_bottles`,
+          saleValue: sql`excluded.sale_value`,
+          totalSaleValue: sql`excluded.total_sale_value`,
+          breakageBottles: sql`excluded.breakage_bottles`,
+          totalClosingStock: sql`excluded.total_closing_stock`,
+          finalClosingBalance: sql`excluded.final_closing_balance`,
+          mrp: sql`excluded.mrp`,
+          invoiceDate: sql`excluded.invoice_date`,
+        }
+      })
+      .returning();
   }
 
   async bulkUpdateDailySalesForDate(salesData: InsertDailySale[], date: string): Promise<DailySale[]> {
-    const results: DailySale[] = [];
-    
-    for (const sale of salesData) {
-      const [updated] = await db.insert(dailySales)
-        .values({ ...sale, saleDate: date, isSubmitted: false })
-        .onConflictDoUpdate({
-          target: [dailySales.brandNumber, dailySales.size, dailySales.saleDate],
-          set: {
-            quantityPerCase: sale.quantityPerCase,
-            openingBalanceBottles: sale.openingBalanceBottles,
-            newStockCases: sale.newStockCases,
-            newStockBottles: sale.newStockBottles,
-            closingBalanceCases: sale.closingBalanceCases,
-            closingBalanceBottles: sale.closingBalanceBottles,
-            soldBottles: sale.soldBottles,
-            saleValue: sale.saleValue,
-            totalSaleValue: sale.totalSaleValue,
-            breakageBottles: sale.breakageBottles,
-            totalClosingStock: sale.totalClosingStock,
-            finalClosingBalance: sale.finalClosingBalance,
-            mrp: sale.mrp,
-            invoiceDate: sale.invoiceDate,
-          }
-        })
-        .returning();
-      results.push(updated);
-    }
-    return results;
+    if (salesData.length === 0) return [];
+    return await db.insert(dailySales)
+      .values(salesData.map(sale => ({ ...sale, saleDate: date, isSubmitted: false })))
+      .onConflictDoUpdate({
+        target: [dailySales.brandNumber, dailySales.size, dailySales.saleDate],
+        set: {
+          quantityPerCase: sql`excluded.quantity_per_case`,
+          openingBalanceBottles: sql`excluded.opening_balance_bottles`,
+          newStockCases: sql`excluded.new_stock_cases`,
+          newStockBottles: sql`excluded.new_stock_bottles`,
+          closingBalanceCases: sql`excluded.closing_balance_cases`,
+          closingBalanceBottles: sql`excluded.closing_balance_bottles`,
+          soldBottles: sql`excluded.sold_bottles`,
+          saleValue: sql`excluded.sale_value`,
+          totalSaleValue: sql`excluded.total_sale_value`,
+          breakageBottles: sql`excluded.breakage_bottles`,
+          totalClosingStock: sql`excluded.total_closing_stock`,
+          finalClosingBalance: sql`excluded.final_closing_balance`,
+          mrp: sql`excluded.mrp`,
+          invoiceDate: sql`excluded.invoice_date`,
+        }
+      })
+      .returning();
   }
 
   async submitSalesForDate(date: string): Promise<number> {
@@ -266,20 +268,20 @@ export class DatabaseStorage implements IStorage {
     if (latestRows.length === 0) return;
     const mostRecentDate = latestRows[0].date;
     const recentRows = latestRows.filter((r) => r.date === mostRecentDate);
-    for (const row of recentRows) {
-      await db.insert(stockDetails).values({
-        brandNumber: row.brandNumber,
-        brandName: row.brandName,
-        size: row.size,
-        quantityPerCase: row.quantityPerCase,
-        stockInCases: row.stockInCases ?? 0,
-        stockInBottles: row.stockInBottles ?? 0,
-        totalStockBottles: row.totalStockBottles ?? 0,
-        mrp: row.mrp || '0',
-        totalStockValue: row.totalStockValue || '0',
-        breakage: row.breakage ?? 0,
-      });
-    }
+    if (recentRows.length === 0) return;
+    // Batch insert instead of N individual inserts
+    await db.insert(stockDetails).values(recentRows.map(row => ({
+      brandNumber: row.brandNumber,
+      brandName: row.brandName,
+      size: row.size,
+      quantityPerCase: row.quantityPerCase,
+      stockInCases: row.stockInCases ?? 0,
+      stockInBottles: row.stockInBottles ?? 0,
+      totalStockBottles: row.totalStockBottles ?? 0,
+      mrp: row.mrp || '0',
+      totalStockValue: row.totalStockValue || '0',
+      breakage: row.breakage ?? 0,
+    })));
     console.log(`[populateStockFromLatestSnapshot] Inserted ${recentRows.length} rows from daily_stock date=${mostRecentDate}`);
   }
 
@@ -436,10 +438,11 @@ export class DatabaseStorage implements IStorage {
       syncedOrderIds.push(...agg.orderIds);
     }
 
-    for (const orderId of syncedOrderIds) {
+    // Mark all synced orders in one batch query
+    if (syncedOrderIds.length > 0) {
       await db.update(orders)
         .set({ dataUpdated: "YES" })
-        .where(eq(orders.id, orderId));
+        .where(inArray(orders.id, syncedOrderIds));
     }
 
     return { syncedOrderIds, updatedStockCount };
@@ -557,18 +560,19 @@ export class DatabaseStorage implements IStorage {
       return na === nb || na.includes(nb) || nb.includes(na);
     };
 
-    let updatedStockCount = 0;
+    // Separate matched vs unmatched in JS (matching logic is fuzzy — can't easily batch in SQL)
+    type UpdateRow = { id: number; qty: number; cases: number; btls: number; totBtls: number; totVal: string; mrpStr: string };
+    type InsertRow = { brandNumber: string; brandName: string; size: string; quantityPerCase: number; stockInCases: number; stockInBottles: number; totalStockBottles: number; mrp: string; totalStockValue: string };
+    const updateRows: UpdateRow[] = [];
+    const insertRows: InsertRow[] = [];
 
     for (const sale of dateSales) {
-      // Primary match: brand_number + brand_name + size + qty_per_case
       let matchedStock = allStock.find(stock =>
         sale.brandNumber === stock.brandNumber &&
         normStr(sale.brandName) === normStr(stock.brandName) &&
         sizeMatch(sale.size, stock.size ?? '') &&
         (sale.quantityPerCase ?? 0) === (stock.quantityPerCase ?? 0)
       );
-
-      // Fallback: brand_number + brand_name + size
       if (!matchedStock) {
         matchedStock = allStock.find(stock =>
           sale.brandNumber === stock.brandNumber &&
@@ -579,30 +583,22 @@ export class DatabaseStorage implements IStorage {
 
       const saleMrp = parseFloat(String(sale.mrp ?? '0')) || 0;
       const totalBottles = sale.totalClosingStock ?? 0;
-      const totalValue = totalBottles * saleMrp;
 
       if (matchedStock) {
-        // SET closing-stock values (never decrease below what's saved)
         const existingMrp = parseFloat(String(matchedStock.mrp ?? '0')) || 0;
         const newMrp = saleMrp > 0 ? saleMrp : existingMrp;
-        // Also update quantityPerCase if sale has a corrected value (from order pack_size)
-        const newQtyPerCase = (sale.quantityPerCase && sale.quantityPerCase > 0)
-          ? sale.quantityPerCase
-          : (matchedStock.quantityPerCase ?? 12);
-        await db.update(stockDetails)
-          .set({
-            quantityPerCase: newQtyPerCase,
-            stockInCases: sale.closingBalanceCases ?? 0,
-            stockInBottles: sale.closingBalanceBottles ?? 0,
-            totalStockBottles: totalBottles,
-            totalStockValue: (totalBottles * newMrp).toFixed(2),
-            mrp: newMrp.toString(),
-          })
-          .where(eq(stockDetails.id, matchedStock.id));
-        console.log(`[syncDailySalesToStock] Updated: ${sale.brandNumber} ${sale.size} totBtls=${totalBottles}`);
+        const newQty = (sale.quantityPerCase && sale.quantityPerCase > 0) ? sale.quantityPerCase : (matchedStock.quantityPerCase ?? 12);
+        updateRows.push({
+          id: matchedStock.id,
+          qty: newQty,
+          cases: sale.closingBalanceCases ?? 0,
+          btls: sale.closingBalanceBottles ?? 0,
+          totBtls: totalBottles,
+          totVal: (totalBottles * newMrp).toFixed(2),
+          mrpStr: newMrp.toString(),
+        });
       } else {
-        // INSERT new stock_details row from this sale
-        await db.insert(stockDetails).values({
+        insertRows.push({
           brandNumber: sale.brandNumber,
           brandName: sale.brandName,
           size: sale.size,
@@ -611,14 +607,34 @@ export class DatabaseStorage implements IStorage {
           stockInBottles: sale.closingBalanceBottles ?? 0,
           totalStockBottles: totalBottles,
           mrp: saleMrp > 0 ? saleMrp.toString() : '0',
-          totalStockValue: totalValue.toFixed(2),
+          totalStockValue: (totalBottles * saleMrp).toFixed(2),
         });
-        console.log(`[syncDailySalesToStock] Inserted: ${sale.brandNumber} ${sale.size} totBtls=${totalBottles}`);
       }
-      updatedStockCount++;
     }
 
-    console.log(`[syncDailySalesToStock] Done. Upserted ${updatedStockCount} stock rows`);
+    // Batch UPDATE using raw SQL VALUES clause (single round-trip)
+    if (updateRows.length > 0) {
+      const placeholders = updateRows.map((_, i) =>
+        `($${i * 7 + 1}::int, $${i * 7 + 2}::int, $${i * 7 + 3}::int, $${i * 7 + 4}::int, $${i * 7 + 5}::int, $${i * 7 + 6}::text, $${i * 7 + 7}::text)`
+      ).join(', ');
+      const params = updateRows.flatMap(u => [u.id, u.qty, u.cases, u.btls, u.totBtls, u.totVal, u.mrpStr]);
+      await pool.query(
+        `UPDATE stock_details sd
+         SET quantity_per_case = v.qty, stock_in_cases = v.cases, stock_in_bottles = v.btls,
+             total_stock_bottles = v.tot_btls, total_stock_value = v.tot_val, mrp = v.mrp
+         FROM (VALUES ${placeholders}) AS v(id, qty, cases, btls, tot_btls, tot_val, mrp)
+         WHERE sd.id = v.id`,
+        params
+      );
+    }
+
+    // Batch INSERT for new rows
+    if (insertRows.length > 0) {
+      await db.insert(stockDetails).values(insertRows);
+    }
+
+    const updatedStockCount = updateRows.length + insertRows.length;
+    console.log(`[syncDailySalesToStock] Done. Updated ${updateRows.length} + inserted ${insertRows.length} stock rows`);
     return { updatedStockCount };
   }
 
@@ -640,9 +656,10 @@ export class DatabaseStorage implements IStorage {
 
   async upsertDailyStockSnapshot(date: string): Promise<void> {
     const dateSales = await db.select().from(dailySales).where(eq(dailySales.saleDate, date));
-    for (const sale of dateSales) {
-      const totalValue = (sale.totalClosingStock ?? 0) * parseFloat(sale.mrp as string);
-      await db.insert(dailyStock).values({
+    if (dateSales.length === 0) return;
+    // Batch upsert — single INSERT ... ON CONFLICT instead of N individual queries
+    await db.insert(dailyStock)
+      .values(dateSales.map(sale => ({
         brandNumber: sale.brandNumber,
         brandName: sale.brandName,
         size: sale.size,
@@ -651,22 +668,22 @@ export class DatabaseStorage implements IStorage {
         stockInBottles: sale.closingBalanceBottles ?? 0,
         totalStockBottles: sale.totalClosingStock ?? 0,
         mrp: sale.mrp || '0',
-        totalStockValue: totalValue.toFixed(2),
+        totalStockValue: ((sale.totalClosingStock ?? 0) * parseFloat(String(sale.mrp || '0'))).toFixed(2),
         breakage: sale.breakageBottles ?? 0,
         date: date,
-      }).onConflictDoUpdate({
+      })))
+      .onConflictDoUpdate({
         target: [dailyStock.brandNumber, dailyStock.size, dailyStock.date],
         set: {
-          quantityPerCase: sale.quantityPerCase,
-          stockInCases: sale.closingBalanceCases ?? 0,
-          stockInBottles: sale.closingBalanceBottles ?? 0,
-          totalStockBottles: sale.totalClosingStock ?? 0,
-          mrp: sale.mrp || '0',
-          totalStockValue: totalValue.toFixed(2),
-          breakage: sale.breakageBottles ?? 0,
+          quantityPerCase: sql`excluded.quantity_per_case`,
+          stockInCases: sql`excluded.stock_in_cases`,
+          stockInBottles: sql`excluded.stock_in_bottles`,
+          totalStockBottles: sql`excluded.total_stock_bottles`,
+          mrp: sql`excluded.mrp`,
+          totalStockValue: sql`excluded.total_stock_value`,
+          breakage: sql`excluded.breakage`,
         },
       });
-    }
   }
 
   async getSalesMrpDetails(): Promise<SalesMrpDetail[]> {

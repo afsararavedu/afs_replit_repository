@@ -483,10 +483,13 @@ export async function registerRoutes(
       prevDate.setDate(prevDate.getDate() - 1);
       const prevDateStr = prevDate.toISOString().split("T")[0];
 
-      const [rawPrevDayStock, prevDaySales, allStock] = await Promise.all([
+      // Fetch all required data in parallel (5 queries → 1 parallel round-trip)
+      const [rawPrevDayStock, prevDaySales, allStock, allOrders, salesMrpList] = await Promise.all([
         storage.getDailyStockByDate(prevDateStr),
         storage.getDailySalesByDate(prevDateStr),
         storage.getStockDetails(),
+        storage.getOrders(),
+        storage.getSalesMrpDetails(),
       ]);
 
       // If no snapshot for D-1, fall back to the most recent available snapshot before D
@@ -510,7 +513,6 @@ export async function registerRoutes(
 
       // Step 1: Build orderNewStk first (needed for opening balance calculation below)
       // New Stock (Cs/Btls): aggregate from orders whose invoice_date matches selected date
-      const allOrders = await storage.getOrders();
       const matchingOrders = allOrders.filter((o) => {
         const norm = normalizeInvoiceDate(o.invoiceDate || "");
         return norm === date;
@@ -572,9 +574,7 @@ export async function registerRoutes(
         }
       }
 
-      // Fetch sales MRP overrides
-      const salesMrpList = await storage.getSalesMrpDetails();
-
+      // Build MRP override lookup (salesMrpList fetched in the parallel Promise.all above)
       const findMrpOverride = (brandNumber: string, size: string) => {
         return salesMrpList.find((m) => {
           if (m.brandNumber !== brandNumber) return false;

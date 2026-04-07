@@ -11,8 +11,8 @@ export function useSales(date?: string) {
       if (!res.ok) throw new Error("Failed to fetch sales data");
       return api.sales.list.responses[200].parse(await res.json());
     },
-    staleTime: 0,   // Always fetch fresh — prevents stale empty cache causing wrong date auto-switch
-    gcTime: 0,      // Don't retain old results between date switches
+    staleTime: 20 * 1000, // 20-second window prevents duplicate requests on rapid re-mounts
+    gcTime: 0,            // Drop cache between date switches so stale data never shows for a new date
   });
 }
 
