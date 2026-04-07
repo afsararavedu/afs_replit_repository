@@ -518,6 +518,8 @@ export async function registerRoutes(
 
       type OrderAgg = { cases: number; bottles: number };
       const orderNewStk = new Map<string, OrderAgg>();
+      // Also track qty-per-case extracted from pack_size for each brand+size
+      const orderQtyMap = new Map<string, number>();
       for (const o of matchingOrders) {
         const size = extractSizeFromPackSize(o.packSize);
         const key = normKey2(o.brandNumber, size);
@@ -525,6 +527,11 @@ export async function registerRoutes(
         existing.cases += o.qtyCasesDelivered ?? 0;
         existing.bottles += o.qtyBottlesDelivered ?? 0;
         orderNewStk.set(key, existing);
+        // Extract qty/cs from pack_size (number before '/') — store once per brand+size
+        if (!orderQtyMap.has(key)) {
+          const qty = extractQtyPerCaseFromPackSize(o.packSize);
+          if (qty > 0) orderQtyMap.set(key, qty);
+        }
       }
 
       // Step 2: Build TWO opening balance maps keyed on all 4 fields
@@ -729,9 +736,8 @@ export async function registerRoutes(
       }
 
       // Existing records — override opening balance (from historical sources only),
-      // new stock, and MRP from live sources.
-      // If no historical source found (no daily_stock/daily_sales for D-1),
-      // keep the value already stored in the DB record.
+      // new stock, MRP, and qty-per-case (from order pack_size) from live sources.
+      // If no historical source found, keep the value already stored in the DB record.
       const salesWithOverrides = sales.map((sale) => {
         const key4 = normKey4(sale.brandNumber, sale.brandName, sale.size, sale.quantityPerCase ?? 0);
         const orderKey = normKey2(sale.brandNumber, sale.size);
@@ -740,9 +746,14 @@ export async function registerRoutes(
           : (sale.openingBalanceBottles ?? 0);
         const orderAgg = orderNewStk.get(orderKey);
         const mrpOverride = findMrpOverride(sale.brandNumber, sale.size);
+        // Override qty/cs with value extracted from order pack_size (number before '/')
+        // e.g. "48 / 180 ml" → 48. Falls back to stored value if no matching order.
+        const qtyFromOrder = orderQtyMap.get(orderKey);
+        const quantityPerCase = qtyFromOrder ?? (sale.quantityPerCase ?? 12);
 
         return {
           ...sale,
+          quantityPerCase,
           openingBalanceBottles: openingBalance,
           newStockCases: orderAgg ? orderAgg.cases : 0,
           newStockBottles: orderAgg ? orderAgg.bottles : 0,
