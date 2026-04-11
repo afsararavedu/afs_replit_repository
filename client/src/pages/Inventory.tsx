@@ -135,6 +135,9 @@ export default function Inventory() {
   const [mrpUploadFile, setMrpUploadFile] = useState<File | null>(null);
   const [isMrpUploading, setIsMrpUploading] = useState(false);
 
+  // MRP Table Search
+  const [mrpSearch, setMrpSearch] = useState("");
+
   // All orders (without filters) for MRP dropdowns
   const { data: allOrdersForMrp } = useQuery<Order[]>({
     queryKey: ["/api/orders/all-for-mrp"],
@@ -1029,14 +1032,37 @@ export default function Inventory() {
 
             {/* Existing Sales MRP Records Table */}
             <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
-              <div className="p-4 border-b border-border">
-                <h3 className="font-semibold text-foreground flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-muted-foreground" />
+              <div className="p-4 border-b border-border flex flex-wrap items-center gap-3">
+                <h3 className="font-semibold text-foreground flex items-center gap-2 flex-1 min-w-0">
+                  <Tag className="w-4 h-4 text-muted-foreground shrink-0" />
                   Saved Sales MRP Records
                   {salesMrpData && salesMrpData.length > 0 && (
-                    <span className="ml-2 text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full">{salesMrpData.length}</span>
+                    <span className="ml-2 text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full">
+                      {mrpSearch.trim()
+                        ? `${salesMrpData.filter(r => r.brandNumber.toLowerCase().includes(mrpSearch.toLowerCase()) || r.brandName.toLowerCase().includes(mrpSearch.toLowerCase())).length} / ${salesMrpData.length}`
+                        : salesMrpData.length}
+                    </span>
                   )}
                 </h3>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search Brand No / Name…"
+                    value={mrpSearch}
+                    onChange={e => setMrpSearch(e.target.value)}
+                    data-testid="input-mrp-search"
+                    className="pl-8 pr-8 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-56"
+                  />
+                  {mrpSearch && (
+                    <button
+                      onClick={() => setMrpSearch("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {isLoadingMrp ? (
@@ -1058,7 +1084,13 @@ export default function Inventory() {
                       </tr>
                     </thead>
                     <tbody>
-                      {salesMrpData.map((row, idx) => (
+                      {salesMrpData
+                        .filter(r =>
+                          !mrpSearch.trim() ||
+                          r.brandNumber.toLowerCase().includes(mrpSearch.toLowerCase()) ||
+                          r.brandName.toLowerCase().includes(mrpSearch.toLowerCase())
+                        )
+                        .map((row, idx) => (
                         <tr key={row.id} className={`hover:bg-muted/30 transition-colors ${mrpEditId === row.id ? "bg-primary/5" : ""}`} data-testid={`row-sales-mrp-${row.id}`}>
                           <td className="table-cell text-center text-xs text-muted-foreground">{idx + 1}</td>
                           <td className="table-cell font-mono text-xs text-muted-foreground">{row.brandNumber}</td>
@@ -1091,6 +1123,12 @@ export default function Inventory() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              ) : salesMrpData && salesMrpData.length > 0 && mrpSearch.trim() ? (
+                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <Search className="w-8 h-8 mb-2 opacity-30" />
+                  <p className="text-sm">No records match "<strong>{mrpSearch}</strong>".</p>
+                  <button onClick={() => setMrpSearch("")} className="mt-2 text-xs text-primary hover:underline">Clear search</button>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
