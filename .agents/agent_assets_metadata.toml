@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "iastSPCBEoTxrX8SjFhdK"
+uri = "file://sales_mrp_details_export.csv"
+type = "table"
+title = "sales_mrp_details (Production Export)"
