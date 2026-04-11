@@ -33,6 +33,7 @@ import {
 import { type InsertOrder, type Order, type ShopDetail, type SalesMrpDetail } from "@shared/schema";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { PaginationCustom } from "@/components/ui/pagination-custom";
 import {
@@ -183,11 +184,7 @@ export default function Inventory() {
 
   const { mutate: deleteSalesMrp, isPending: isDeletingMrp } = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/sales-mrp/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "Failed to delete" }));
-        throw new Error(err.message);
-      }
+      const res = await apiRequest("DELETE", `/api/sales-mrp/${id}`);
       return res.json();
     },
     onSuccess: () => {
