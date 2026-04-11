@@ -816,6 +816,18 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/sales-mrp/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid id" });
+      const deleted = await storage.deleteSalesMrpDetail(id);
+      if (!deleted) return res.status(404).json({ message: "Record not found" });
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Bulk upload Sales MRP from Excel
   app.post("/api/sales-mrp/bulk-upload", upload.single("file"), async (req, res) => {
     try {

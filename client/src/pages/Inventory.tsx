@@ -181,6 +181,29 @@ export default function Inventory() {
     },
   });
 
+  const { mutate: deleteSalesMrp, isPending: isDeletingMrp } = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/sales-mrp/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed to delete" }));
+        throw new Error(err.message);
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sales-mrp"] });
+      toast({ title: "Deleted", description: "Sales MRP record removed.", className: "bg-green-50 text-green-800" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const handleDeleteMrp = (id: number) => {
+    if (!confirm("Are you sure you want to delete this Sales MRP record? This cannot be undone.")) return;
+    deleteSalesMrp(id);
+  };
+
   // Helper to extract size from packSize like "48 / 180 ml" → "180 ml"
   const extractMrpSize = (packSize: string) => {
     const parts = packSize.split("/");
@@ -1047,14 +1070,25 @@ export default function Inventory() {
                           <td className="table-cell text-muted-foreground">{row.size}</td>
                           <td className="table-cell text-right font-bold text-primary font-mono bg-primary/5">₹{row.salesMrp}</td>
                           <td className="table-cell text-center">
-                            <button
-                              onClick={() => handleLoadMrpEdit(row)}
-                              className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                              data-testid={`button-edit-mrp-${row.id}`}
-                              title="Edit"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                onClick={() => handleLoadMrpEdit(row)}
+                                className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                                data-testid={`button-edit-mrp-${row.id}`}
+                                title="Edit"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteMrp(row.id)}
+                                disabled={isDeletingMrp}
+                                className="p-1.5 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors disabled:opacity-50"
+                                data-testid={`button-delete-mrp-${row.id}`}
+                                title="Delete"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

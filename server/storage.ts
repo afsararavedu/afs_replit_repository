@@ -56,6 +56,7 @@ export interface IStorage {
   getSalesMrpDetails(): Promise<SalesMrpDetail[]>;
   upsertSalesMrpDetail(data: InsertSalesMrpDetail): Promise<SalesMrpDetail>;
   bulkUpsertSalesMrpDetails(data: InsertSalesMrpDetail[]): Promise<number>;
+  deleteSalesMrpDetail(id: number): Promise<boolean>;
 
   // Shop Details
   createShopDetail(shop: InsertShopDetail): Promise<ShopDetail>;
@@ -712,6 +713,11 @@ export class DatabaseStorage implements IStorage {
       },
     }).returning();
     return results.length;
+  }
+
+  async deleteSalesMrpDetail(id: number): Promise<boolean> {
+    const result = await db.delete(salesMrpDetails).where(eq(salesMrpDetails.id, id)).returning();
+    return result.length > 0;
   }
 
   async createShopDetail(shop: InsertShopDetail): Promise<ShopDetail> {
