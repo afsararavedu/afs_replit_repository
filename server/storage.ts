@@ -103,11 +103,11 @@ export class DatabaseStorage implements IStorage {
 
   // Sales
   async getDailySales(): Promise<DailySale[]> {
-    return await db.select().from(dailySales);
+    return await db.select().from(dailySales).orderBy(sql`CAST(brand_number AS INTEGER)`);
   }
 
   async getDailySalesByDate(date: string): Promise<DailySale[]> {
-    return await db.select().from(dailySales).where(eq(dailySales.saleDate, date));
+    return await db.select().from(dailySales).where(eq(dailySales.saleDate, date)).orderBy(sql`CAST(brand_number AS INTEGER)`);
   }
 
   async getEarliestInvoiceDate(): Promise<string | null> {
@@ -207,7 +207,7 @@ export class DatabaseStorage implements IStorage {
 
   // Orders
   async getOrders(): Promise<Order[]> {
-    return await db.select().from(orders).orderBy(desc(orders.id));
+    return await db.select().from(orders).orderBy(sql`CAST(brand_number AS INTEGER)`, desc(orders.id));
   }
 
   async getLatestOrderInvoiceDate(): Promise<string | null> {
@@ -250,11 +250,11 @@ export class DatabaseStorage implements IStorage {
 
   // Stock
   async getStockDetails(): Promise<StockDetail[]> {
-    const existing = await db.select().from(stockDetails);
+    const existing = await db.select().from(stockDetails).orderBy(sql`CAST(brand_number AS INTEGER)`);
     if (existing.length === 0) {
       // Auto-populate from the most recent daily_stock snapshot
       await this.populateStockFromLatestSnapshot();
-      return await db.select().from(stockDetails);
+      return await db.select().from(stockDetails).orderBy(sql`CAST(brand_number AS INTEGER)`);
     }
     return existing;
   }
@@ -687,7 +687,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSalesMrpDetails(): Promise<SalesMrpDetail[]> {
-    return await db.select().from(salesMrpDetails).orderBy(salesMrpDetails.brandNumber);
+    return await db.select().from(salesMrpDetails).orderBy(sql`CAST(brand_number AS INTEGER)`);
   }
 
   async upsertSalesMrpDetail(data: InsertSalesMrpDetail): Promise<SalesMrpDetail> {
