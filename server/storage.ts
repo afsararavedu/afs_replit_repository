@@ -207,7 +207,7 @@ export class DatabaseStorage implements IStorage {
 
   // Orders
   async getOrders(): Promise<Order[]> {
-    return await db.select().from(orders).orderBy(sql`CAST(brand_number AS INTEGER)`, desc(orders.id));
+    return await db.select().from(orders).orderBy(desc(orders.invoiceDate), desc(orders.id));
   }
 
   async getLatestOrderInvoiceDate(): Promise<string | null> {
