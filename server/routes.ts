@@ -866,7 +866,16 @@ export async function registerRoutes(
 
       if (rows.length === 0) return res.status(400).json({ message: "No valid rows found. Ensure columns brand_number, brand_name, size are present." });
 
-      const saved = await storage.bulkUpsertSalesMrpDetails(rows);
+      // Deduplicate: keep last occurrence of each (brandNumber, brandName, size, productType) key
+      const deduped = Array.from(
+        rows.reduce((map, row) => {
+          const key = `${row.brandNumber}|${row.brandName}|${row.size}|${row.productType}`;
+          map.set(key, row);
+          return map;
+        }, new Map<string, typeof rows[number]>()).values()
+      );
+
+      const saved = await storage.bulkUpsertSalesMrpDetails(deduped);
       res.json({
         message: `${saved} Sales MRP record(s) imported successfully.${skipped.length > 0 ? ` Skipped ${skipped.length} row(s) missing required fields (rows: ${skipped.join(", ")}).` : ""}`,
         saved,
