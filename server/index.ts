@@ -90,6 +90,16 @@ app.use((req, res, next) => {
     console.warn("Column rename migration skipped or already applied:", (e as Error).message);
   }
 
+  // One-time fix: pad brand_number to 4 digits across all tables
+  try {
+    for (const tbl of ["orders", "stock_details", "daily_sales", "daily_stock", "sales_mrp_details"]) {
+      await db.execute(sql.raw(`UPDATE ${tbl} SET brand_number = LPAD(brand_number, 4, '0') WHERE brand_number ~ '^[0-9]+$' AND LENGTH(brand_number) < 4`));
+    }
+    log("Brand number padding migration applied.");
+  } catch (e) {
+    console.warn("Brand number padding migration failed:", (e as Error).message);
+  }
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
