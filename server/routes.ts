@@ -1167,22 +1167,6 @@ export async function registerRoutes(
     }
   });
 
-  // ONE-TIME admin fix: pad brand_number to 4 digits in all tables
-  app.post("/api/admin/pad-brand-numbers", async (_req, res) => {
-    try {
-      const results: Record<string, number> = {};
-      for (const tbl of ["orders", "stock_details", "daily_sales", "daily_stock", "sales_mrp_details"]) {
-        const r = await pool.query(
-          `UPDATE ${tbl} SET brand_number = LPAD(brand_number, 4, '0') WHERE brand_number ~ '^[0-9]+$' AND LENGTH(brand_number) < 4`
-        );
-        results[tbl] = r.rowCount ?? 0;
-      }
-      res.json({ message: "Brand number padding applied.", updated: results });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
-
   app.get("/api/shop-details", async (_req, res) => {
     try {
       const details = await storage.getShopDetails();

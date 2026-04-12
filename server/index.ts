@@ -90,50 +90,6 @@ app.use((req, res, next) => {
     console.warn("Column rename migration skipped or already applied:", (e as Error).message);
   }
 
-  // One-time fix: pad brand_number to 4 digits across all tables
-  try {
-    // orders & stock_details: no unique conflict risk
-    for (const tbl of ["orders", "stock_details"]) {
-      await db.execute(sql.raw(`UPDATE ${tbl} SET brand_number = LPAD(brand_number, 4, '0') WHERE brand_number ~ '^[0-9]+$' AND LENGTH(brand_number) < 4`));
-    }
-    // daily_sales: unique on (brand_number, size, sale_date) — delete duplicates first
-    await db.execute(sql.raw(`
-      DELETE FROM daily_sales ds
-      WHERE brand_number ~ '^[0-9]+$' AND LENGTH(brand_number) < 4
-        AND EXISTS (
-          SELECT 1 FROM daily_sales ds2
-          WHERE ds2.brand_number = LPAD(ds.brand_number, 4, '0')
-            AND ds2.size = ds.size AND ds2.sale_date = ds.sale_date
-        )
-    `));
-    await db.execute(sql.raw(`UPDATE daily_sales SET brand_number = LPAD(brand_number, 4, '0') WHERE brand_number ~ '^[0-9]+$' AND LENGTH(brand_number) < 4`));
-    // daily_stock: unique on (brand_number, size, date)
-    await db.execute(sql.raw(`
-      DELETE FROM daily_stock ds
-      WHERE brand_number ~ '^[0-9]+$' AND LENGTH(brand_number) < 4
-        AND EXISTS (
-          SELECT 1 FROM daily_stock ds2
-          WHERE ds2.brand_number = LPAD(ds.brand_number, 4, '0')
-            AND ds2.size = ds.size AND ds2.date = ds.date
-        )
-    `));
-    await db.execute(sql.raw(`UPDATE daily_stock SET brand_number = LPAD(brand_number, 4, '0') WHERE brand_number ~ '^[0-9]+$' AND LENGTH(brand_number) < 4`));
-    // sales_mrp_details: unique on (brand_number, brand_name, size, product_type)
-    await db.execute(sql.raw(`
-      DELETE FROM sales_mrp_details sm
-      WHERE brand_number ~ '^[0-9]+$' AND LENGTH(brand_number) < 4
-        AND EXISTS (
-          SELECT 1 FROM sales_mrp_details sm2
-          WHERE sm2.brand_number = LPAD(sm.brand_number, 4, '0')
-            AND sm2.brand_name = sm.brand_name AND sm2.size = sm.size AND sm2.product_type = sm.product_type
-        )
-    `));
-    await db.execute(sql.raw(`UPDATE sales_mrp_details SET brand_number = LPAD(brand_number, 4, '0') WHERE brand_number ~ '^[0-9]+$' AND LENGTH(brand_number) < 4`));
-    log("Brand number padding migration applied.");
-  } catch (e) {
-    console.warn("Brand number padding migration failed:", (e as Error).message);
-  }
-
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
