@@ -612,6 +612,18 @@ export async function registerRoutes(
         });
       };
 
+      // Fallback: look up MRP from stock_details when sale.mrp is missing/zero
+      const findStockMrp = (brandNumber: string, size: string): string | null => {
+        const match = allStock.find((s) => {
+          if (s.brandNumber !== brandNumber) return false;
+          const sNorm = normSize(s.size);
+          const dNorm = normSize(size);
+          return sNorm === dNorm || sNorm.includes(dNorm) || dNorm.includes(sNorm);
+        });
+        const v = parseFloat(match?.mrp as string);
+        return (match && !isNaN(v) && v > 0) ? String(v) : null;
+      };
+
       // If no daily_sales exist for this date yet, generate virtual rows.
       // CASE 2: Orders exist for this date → orders = new stock; prev day daily_sales = opening balance
       //   • Match orders vs prev day daily_sales by Brand No + Brand Name + Size
@@ -705,7 +717,12 @@ export async function registerRoutes(
           for (const [key3, prevSale] of Array.from(prevDayMap.entries())) {
             if (!matchedPrevKeys.has(key3)) {
               const mrpOverride = findMrpOverride(prevSale.brandNumber, prevSale.size);
-              const mrpVal = mrpOverride ? mrpOverride.salesMrp : (prevSale.mrp ?? "0");
+              const prevMrpNum = parseFloat(prevSale.mrp as string);
+              const mrpVal = mrpOverride
+                ? mrpOverride.salesMrp
+                : (!isNaN(prevMrpNum) && prevMrpNum > 0)
+                  ? (prevSale.mrp ?? "0")
+                  : (findStockMrp(prevSale.brandNumber, prevSale.size) ?? prevSale.mrp ?? "0");
               virtualRows.push(makeVirtualRow(virtualRows.length, prevSale.brandNumber, prevSale.brandName, prevSale.size, prevSale.quantityPerCase ?? 12, prevSale.totalClosingStock ?? 0, 0, 0, mrpVal));
             }
           }
@@ -717,7 +734,12 @@ export async function registerRoutes(
         if (prevDaySales.length > 0) {
           const virtualRows = prevDaySales.map((sale, idx) => {
             const mrpOverride = findMrpOverride(sale.brandNumber, sale.size);
-            const mrpVal = mrpOverride ? mrpOverride.salesMrp : (sale.mrp ?? "0");
+            const prevMrpNum = parseFloat(sale.mrp as string);
+            const mrpVal = mrpOverride
+              ? mrpOverride.salesMrp
+              : (!isNaN(prevMrpNum) && prevMrpNum > 0)
+                ? (sale.mrp ?? "0")
+                : (findStockMrp(sale.brandNumber, sale.size) ?? sale.mrp ?? "0");
             return makeVirtualRow(idx, sale.brandNumber, sale.brandName, sale.size, sale.quantityPerCase ?? 12, sale.totalClosingStock ?? 0, 0, 0, mrpVal);
           });
           return res.json(virtualRows);
@@ -779,13 +801,21 @@ export async function registerRoutes(
         const qtyFromOrder = orderQtyMap.get(orderKey);
         const quantityPerCase = qtyFromOrder ?? (sale.quantityPerCase ?? 12);
 
+        // Resolve MRP: sales_mrp_details override → stored sale.mrp (if non-zero) → stock_details.mrp fallback
+        const storedMrp = parseFloat(sale.mrp as string);
+        const resolvedMrp = mrpOverride
+          ? mrpOverride.salesMrp
+          : (!isNaN(storedMrp) && storedMrp > 0)
+            ? sale.mrp
+            : (findStockMrp(sale.brandNumber, sale.size) ?? sale.mrp ?? "0");
+
         return {
           ...sale,
           quantityPerCase,
           openingBalanceBottles: openingBalance,
           newStockCases: orderAgg ? orderAgg.cases : 0,
           newStockBottles: orderAgg ? orderAgg.bottles : 0,
-          mrp: mrpOverride ? mrpOverride.salesMrp : sale.mrp,
+          mrp: resolvedMrp,
         };
       });
       return res.json(salesWithOverrides);
