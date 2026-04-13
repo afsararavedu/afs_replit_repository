@@ -362,7 +362,7 @@ async function parsePdfInvoice(
       .trim();
 
     const typeMatch = beforeSize.match(
-      /^(.+?)\s+(Beer|IML|IMFL|Wine|RTD)\s+([A-Z])\s*$/i,
+      /^(.+?)\s+(Beer|IML|IMFL|Wine|RTD|Duty\s*Paid|Duty\s*Free)\s+([A-Z])\s*$/i,
     );
     let brandName = "",
       productType = "",
