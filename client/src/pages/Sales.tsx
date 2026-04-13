@@ -200,6 +200,11 @@ export default function Sales() {
   const excelFileInputRef = useRef<HTMLInputElement>(null);
   const [uploadResult, setUploadResult] = useState<{ updated: number; skipped: number; notFound: number } | null>(null);
 
+  // Tracks which item IDs the user has explicitly typed into a closing field this session.
+  // Not touched = no sales (closing stays as total stock).
+  // Touched with 0 = all sold. Touched with >0 = partial sale.
+  const [touchedClosingIds, setTouchedClosingIds] = useState<Set<number>>(new Set());
+
   const generateCSV = useCallback((data: DailySale[], date: string) => {
     const headers = [
       "SNo", "Brand No", "Brand Name", "Size", "Qty/Case", 
@@ -364,6 +369,7 @@ export default function Sales() {
         }
 
         let updated = 0, skipped = 0, notFound = 0;
+        const uploadedTouchedIds: number[] = [];
 
         setLocalSales(prev => {
           const next = [...prev];
@@ -403,8 +409,6 @@ export default function Sales() {
             const closingTotal    = clsBtls + (clsCs * qtyPerCase);
             const soldBottles     = totalStock - closingTotal;
             const saleValue       = soldBottles * mrp;
-            const totalClosingStock    = closingTotal;
-            const finalClosingBalance  = Math.round(totalClosingStock - breakage);
 
             next[idx] = {
               ...item,
@@ -414,14 +418,20 @@ export default function Sales() {
               soldBottles,
               saleValue: saleValue.toFixed(2),
               totalSaleValue: saleValue.toFixed(2),
-              totalClosingStock,
-              finalClosingBalance,
+              totalClosingStock: closingTotal,
+              finalClosingBalance: Math.round(closingTotal - breakage),
             };
+            uploadedTouchedIds.push(item.id);
             updated++;
           }
           setUploadResult({ updated, skipped, notFound });
           return next;
         });
+
+        // Mark Excel-uploaded items as touched so they display their closing values
+        if (uploadedTouchedIds.length > 0) {
+          setTouchedClosingIds(prev => new Set([...Array.from(prev), ...uploadedTouchedIds]));
+        }
 
         if (excelFileInputRef.current) excelFileInputRef.current.value = "";
         toast({
@@ -439,6 +449,16 @@ export default function Sales() {
   // Sync local state when data loads or date changes
   useEffect(() => {
     if (sales) {
+      // Determine which rows were previously saved with explicit closing data
+      const newTouched = new Set<number>();
+      for (const s of sales) {
+        // Row was explicitly saved if: closing > 0 (partial sale) OR soldBottles > 0 (all sold)
+        if ((s.closingBalanceCases || 0) > 0 || (s.closingBalanceBottles || 0) > 0 || (s.soldBottles || 0) > 0) {
+          newTouched.add(s.id);
+        }
+      }
+      setTouchedClosingIds(newTouched);
+
       const recalculated = sales.map((s) => {
         const opBalBtls    = s.openingBalanceBottles ?? 0;
         const qtyPerCase   = s.quantityPerCase ?? 0;
@@ -448,20 +468,25 @@ export default function Sales() {
         const closingBtls  = s.closingBalanceBottles ?? 0;
         const breakage     = s.breakageBottles ?? 0;
         const mrp          = parseFloat(s.mrp as string) || 0;
+        const totalStock   = opBalBtls + (qtyPerCase * newStockCs) + newStockBtls;
 
-        const closingTotal      = closingBtls + (closingCs * qtyPerCase);
-        const finalClosingBalance = Math.round(closingTotal - breakage);
-
-        // Only recalculate sale value if closing balance has been entered
-        // (i.e. user has actually saved data for this row before)
-        const hasClosingData = closingCs > 0 || closingBtls > 0;
-        if (!hasClosingData) {
-          return { ...s, finalClosingBalance };
+        // Rows not previously touched: no sales — closing = total stock
+        const isTouched = (closingCs > 0 || closingBtls > 0 || (s.soldBottles || 0) > 0);
+        if (!isTouched) {
+          return {
+            ...s,
+            soldBottles: 0,
+            saleValue: "0.00",
+            totalSaleValue: "0.00",
+            totalClosingStock: totalStock,
+            finalClosingBalance: Math.round(totalStock - breakage),
+          };
         }
 
-        const totalStock    = opBalBtls + (qtyPerCase * newStockCs) + newStockBtls;
-        const soldBottles   = totalStock - closingTotal;
-        const saleValue     = soldBottles * mrp;
+        // Rows with explicit closing data: recalculate fully
+        const closingTotal = closingBtls + (closingCs * qtyPerCase);
+        const soldBottles  = totalStock - closingTotal;
+        const saleValue    = soldBottles * mrp;
 
         return {
           ...s,
@@ -469,7 +494,7 @@ export default function Sales() {
           saleValue: saleValue.toFixed(2),
           totalSaleValue: saleValue.toFixed(2),
           totalClosingStock: closingTotal,
-          finalClosingBalance,
+          finalClosingBalance: Math.round(closingTotal - breakage),
         };
       });
       setLocalSales(recalculated);
@@ -481,6 +506,7 @@ export default function Sales() {
     setCurrentPage(1);
     setSearchTerm("");
     setUploadResult(null);
+    setTouchedClosingIds(new Set());
   }, [selectedDate]);
 
   const handleInputChange = (
@@ -489,50 +515,62 @@ export default function Sales() {
     value: string,
   ) => {
     if (isSubmitted && !isAdmin) return;
+
+    const isClosingField = field === "closingBalanceCases" || field === "closingBalanceBottles";
+
+    // Mark as touched when user explicitly types into a closing field
+    if (isClosingField) {
+      setTouchedClosingIds((prev) => new Set([...Array.from(prev), id]));
+    }
+
     const numValue =
       field === "mrp" ? value : value === "" ? 0 : parseInt(value, 10);
+
     setLocalSales((prev) =>
       prev.map((item) => {
-        if (item.id === id) {
-          const updatedItem = { ...item, [field]: numValue };
+        if (item.id !== id) return item;
 
-          const opBalBtls = updatedItem.openingBalanceBottles || 0;
-          const qtyPerCase = updatedItem.quantityPerCase || 0;
-          const newStockCs = updatedItem.newStockCases || 0;
-          const newStockBtls = updatedItem.newStockBottles || 0;
-          const closingCs = updatedItem.closingBalanceCases || 0;
-          const closingBtls = updatedItem.closingBalanceBottles || 0;
-          const mrp = parseFloat(updatedItem.mrp as string) || 0;
-          const breakage = updatedItem.breakageBottles || 0;
+        const updatedItem = { ...item, [field]: numValue };
 
-          const totalStock = opBalBtls + (qtyPerCase * newStockCs) + newStockBtls;
+        const opBalBtls  = updatedItem.openingBalanceBottles || 0;
+        const qtyPerCase = updatedItem.quantityPerCase || 0;
+        const newStockCs = updatedItem.newStockCases || 0;
+        const newStockBtls = updatedItem.newStockBottles || 0;
+        const closingCs  = updatedItem.closingBalanceCases || 0;
+        const closingBtls = updatedItem.closingBalanceBottles || 0;
+        const mrp        = parseFloat(updatedItem.mrp as string) || 0;
+        const breakage   = updatedItem.breakageBottles || 0;
+        const totalStock = opBalBtls + (qtyPerCase * newStockCs) + newStockBtls;
 
-          // If both closing fields are 0/untouched → no sales: closing = total stock
-          if (closingCs === 0 && closingBtls === 0) {
-            return {
-              ...updatedItem,
-              soldBottles: 0,
-              saleValue: "0.00",
-              totalSaleValue: "0.00",
-              totalClosingStock: totalStock,
-              finalClosingBalance: Math.round(totalStock - breakage),
-            };
-          }
+        // "Touched" means the user has explicitly typed into a closing field for this item.
+        // touchedClosingIds state is stale here but isClosingField covers the current call.
+        const isTouched = isClosingField || touchedClosingIds.has(id);
 
-          const closingTotal = closingBtls + (closingCs * qtyPerCase);
-          const soldBottles = totalStock - closingTotal;
-          const saleValue = soldBottles * mrp;
-
+        if (!isTouched) {
+          // Non-closing field changed, item never touched → keep "no sales" mode
           return {
             ...updatedItem,
-            soldBottles,
-            saleValue: saleValue.toFixed(2),
-            totalSaleValue: saleValue.toFixed(2),
-            totalClosingStock: closingTotal,
-            finalClosingBalance: Math.round(closingTotal - breakage),
+            soldBottles: 0,
+            saleValue: "0.00",
+            totalSaleValue: "0.00",
+            totalClosingStock: totalStock,
+            finalClosingBalance: Math.round(totalStock - breakage),
           };
         }
-        return item;
+
+        // Item is touched: use actual closing values (0 = all sold, >0 = partial)
+        const closingTotal = closingBtls + (closingCs * qtyPerCase);
+        const soldBottles  = totalStock - closingTotal;
+        const saleValue    = soldBottles * mrp;
+
+        return {
+          ...updatedItem,
+          soldBottles,
+          saleValue: saleValue.toFixed(2),
+          totalSaleValue: saleValue.toFixed(2),
+          totalClosingStock: closingTotal,
+          finalClosingBalance: Math.round(closingTotal - breakage),
+        };
       }),
     );
   };
@@ -551,23 +589,22 @@ export default function Sales() {
       return;
     }
 
-    // If both closing fields are untouched (0/empty) → no sales: closing = total stock
+    // Untouched items → no sales: closing = total stock carries forward
     const dataToSave = localSales.map((item) => {
-      const closingCs = item.closingBalanceCases || 0;
-      const closingBtls = item.closingBalanceBottles || 0;
-      if (closingCs === 0 && closingBtls === 0) {
+      if (!touchedClosingIds.has(item.id)) {
         const totalStk =
           (item.openingBalanceBottles || 0) +
           (item.quantityPerCase || 0) * (item.newStockCases || 0) +
           (item.newStockBottles || 0);
-        const finalClsStkBal = Math.round(totalStk - (item.breakageBottles || 0));
         return {
           ...item,
+          closingBalanceCases: 0,
+          closingBalanceBottles: 0,
           soldBottles: 0,
           saleValue: "0.00",
           totalSaleValue: "0.00",
           totalClosingStock: totalStk,
-          finalClosingBalance: finalClsStkBal,
+          finalClosingBalance: Math.round(totalStk - (item.breakageBottles || 0)),
         };
       }
       return item;
@@ -1044,7 +1081,7 @@ export default function Sales() {
                           <input
                             type="number"
                             min="0"
-                            value={item.closingBalanceCases || ""}
+                            value={touchedClosingIds.has(item.id) ? (item.closingBalanceCases ?? 0) : ""}
                             onChange={(e) =>
                               handleInputChange(
                                 item.id,
@@ -1064,7 +1101,7 @@ export default function Sales() {
                           <input
                             type="number"
                             min="0"
-                            value={item.closingBalanceBottles || ""}
+                            value={touchedClosingIds.has(item.id) ? (item.closingBalanceBottles ?? 0) : ""}
                             onChange={(e) =>
                               handleInputChange(
                                 item.id,
