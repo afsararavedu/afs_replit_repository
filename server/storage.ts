@@ -696,19 +696,33 @@ export class DatabaseStorage implements IStorage {
           sizeMatch(sale.size, stock.size ?? '')
         );
       }
+      if (!matchedStock) {
+        // Log the first few unmatched sales to help diagnose matching failures
+        console.log(`[syncDailySalesToStock] NO MATCH for brandNo="${sale.brandNumber}" name="${sale.brandName}" size="${sale.size}" qty=${sale.quantityPerCase} → will INSERT new stock_details row`);
+      }
 
       const saleMrp = parseFloat(String(sale.mrp ?? '0')) || 0;
       const totalBottles = sale.totalClosingStock ?? 0;
 
+      // For untouched rows (no closing entered), closingBalanceCases & closingBalanceBottles
+      // are stored as 0 but totalClosingStock = opening + new stock (all carried forward).
+      // Derive cases/bottles from totalClosingStock so stock_details stays consistent.
+      const rawCases = sale.closingBalanceCases ?? 0;
+      const rawBtls  = sale.closingBalanceBottles ?? 0;
+      const qtyPc    = (sale.quantityPerCase && sale.quantityPerCase > 0) ? sale.quantityPerCase : 12;
+      const isUntouched = rawCases === 0 && rawBtls === 0 && totalBottles > 0;
+      const effectiveCases = isUntouched ? Math.floor(totalBottles / qtyPc) : rawCases;
+      const effectiveBtls  = isUntouched ? (totalBottles % qtyPc)           : rawBtls;
+
       if (matchedStock) {
         const existingMrp = parseFloat(String(matchedStock.mrp ?? '0')) || 0;
         const newMrp = saleMrp > 0 ? saleMrp : existingMrp;
-        const newQty = (sale.quantityPerCase && sale.quantityPerCase > 0) ? sale.quantityPerCase : (matchedStock.quantityPerCase ?? 12);
+        const newQty = qtyPc;
         updateRows.push({
           id: matchedStock.id,
           qty: newQty,
-          cases: sale.closingBalanceCases ?? 0,
-          btls: sale.closingBalanceBottles ?? 0,
+          cases: effectiveCases,
+          btls: effectiveBtls,
           totBtls: totalBottles,
           totVal: (totalBottles * newMrp).toFixed(2),
           mrpStr: newMrp.toString(),
@@ -718,9 +732,9 @@ export class DatabaseStorage implements IStorage {
           brandNumber: sale.brandNumber,
           brandName: sale.brandName,
           size: sale.size,
-          quantityPerCase: sale.quantityPerCase ?? 12,
-          stockInCases: sale.closingBalanceCases ?? 0,
-          stockInBottles: sale.closingBalanceBottles ?? 0,
+          quantityPerCase: qtyPc,
+          stockInCases: effectiveCases,
+          stockInBottles: effectiveBtls,
           totalStockBottles: totalBottles,
           mrp: saleMrp > 0 ? saleMrp.toString() : '0',
           totalStockValue: (totalBottles * saleMrp).toFixed(2),
