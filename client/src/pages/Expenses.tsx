@@ -156,14 +156,14 @@ export default function Expenses() {
 
   const addCategory = useMutation({
     mutationFn: (data: { name: string; type: string }) =>
-      apiRequest("POST", "/api/expense-categories", data).then(r => r.json()),
-    onSuccess: (created: any) => {
+      apiRequest("POST", "/api/expense-categories", data),
+    onSuccess: (_res, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/expense-categories"] });
       setNewCatExpense("");
       setNewCatIncome("");
       toast({
         title: "Category added",
-        description: `"${created.name}" added to ${created.type} categories.`,
+        description: `"${variables.name}" added to ${variables.type} categories.`,
         className: "bg-green-50 text-green-800",
       });
     },
