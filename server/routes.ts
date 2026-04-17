@@ -859,7 +859,61 @@ export async function registerRoutes(
           mrp: resolvedMrp,
         };
       });
-      return res.json(salesWithOverrides);
+
+      // Append virtual rows for orders whose brand+size have NO matching saved daily_sales row.
+      // This handles: brand number changed after save, or new orders added after a date was saved.
+      type OrderRowAgg2 = { brandNumber: string; brandName: string; size: string; packSize: string; cases: number; bottles: number };
+      const orderRowMap2 = new Map<string, OrderRowAgg2>();
+      for (const o of matchingOrders) {
+        const sz = extractSizeFromPackSize(o.packSize);
+        const k = normKey2(o.brandNumber, sz);
+        const ex = orderRowMap2.get(k);
+        if (ex) {
+          ex.cases += o.qtyCasesDelivered ?? 0;
+          ex.bottles += o.qtyBottlesDelivered ?? 0;
+        } else {
+          orderRowMap2.set(k, { brandNumber: o.brandNumber, brandName: o.brandName, size: sz, packSize: o.packSize, cases: o.qtyCasesDelivered ?? 0, bottles: o.qtyBottlesDelivered ?? 0 });
+        }
+      }
+      const existingKeys = new Set(sales.map(s => normKey2(s.brandNumber, s.size)));
+      const unmatchedVirtualRows: typeof salesWithOverrides = [];
+      let vIdx = 0;
+      for (const [, ord] of Array.from(orderRowMap2.entries())) {
+        if (!existingKeys.has(normKey2(ord.brandNumber, ord.size))) {
+          const mrpOv = findMrpOverride(ord.brandNumber, ord.size);
+          const stk = allStock.find(s => normKey2(s.brandNumber, s.size) === normKey2(ord.brandNumber, ord.size));
+          const mrpVal = mrpOv ? mrpOv.salesMrp as string : (stk?.mrp as string ?? "0");
+          const qtyPc = extractQtyPerCaseFromPackSize(ord.packSize) || (stk?.quantityPerCase ?? 12);
+          const key4 = normKey4(ord.brandNumber, ord.brandName, ord.size, qtyPc);
+          const opBal = openingBalMapStrict.get(key4) ?? 0;
+          unmatchedVirtualRows.push({
+            id: -(vIdx + 1),
+            brandNumber: ord.brandNumber,
+            brandName: ord.brandName,
+            size: ord.size,
+            quantityPerCase: qtyPc,
+            openingBalanceBottles: opBal,
+            newStockCases: ord.cases,
+            newStockBottles: ord.bottles,
+            closingBalanceCases: 0,
+            closingBalanceBottles: 0,
+            soldBottles: 0,
+            mrp: mrpVal,
+            saleValue: "0",
+            totalSaleValue: "0",
+            breakageBottles: 0,
+            totalClosingStock: 0,
+            finalClosingBalance: 0,
+            saleDate: date,
+            invoiceDate: null,
+            isSubmitted: false,
+            createdAt: null,
+          });
+          vIdx++;
+        }
+      }
+
+      return res.json([...salesWithOverrides, ...unmatchedVirtualRows]);
     }
     const sales = await storage.getDailySales();
     res.json(sales);
