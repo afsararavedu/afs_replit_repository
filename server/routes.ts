@@ -344,80 +344,121 @@ async function parsePdfInvoice(
       i++;
     }
 
-    // Primary: "24 / 180 ml" or "24 x 180 ml" or "24×180ml" with optional decimals
-    const sizeMatch =
-      rest.match(/(\d+\.?\d*\s*[\/x×]\s*\d+\.?\d*\s*(?:ml|ltrs?|ltr?|litre?s?))/i) ||
-      // Fallback: just a size like "750 ml" with no qty/case separator
-      rest.match(/(\d+\.?\d*\s*(?:ml|ltrs?|ltr?|litre?s?))/i);
-    if (!sizeMatch) {
+    const cleanNum = (s: string | undefined) =>
+      (s || "0").replace(/,/g, "").trim();
+
+    // Find ALL size occurrences in rest (handles multi-size brand blocks where
+    // the same brand name spans multiple PDF rows with different pack sizes).
+    const primarySizeRe = /\d+\.?\d*\s*[\/x×]\s*\d+\.?\d*\s*(?:ml|ltrs?|ltr?|litre?s?)/gi;
+    const fallbackSizeRe = /\d+\.?\d*\s*(?:ml|ltrs?|ltr?|litre?s?)/gi;
+    let sizeHits = Array.from(rest.matchAll(primarySizeRe));
+    if (sizeHits.length === 0) sizeHits = Array.from(rest.matchAll(fallbackSizeRe));
+
+    if (sizeHits.length === 0) {
       skippedLines.push(`brandNo=${brandNumber} rest="${rest.substring(0, 120)}"`);
       continue;
     }
 
-    // Normalise the separator so downstream code always sees "qty / size ml"
-    const packSize = sizeMatch[1].replace(/\s+/g, " ").replace(/\s*[x×]\s*/i, " / ").trim();
-    const beforeSize = rest.substring(0, rest.indexOf(sizeMatch[0])).trim();
-    const afterSize = rest
-      .substring(rest.indexOf(sizeMatch[0]) + sizeMatch[0].length)
-      .trim();
+    // Helper: extract brand name, product type, pack type from a prefix string.
+    const extractBrandTypePack = (prefix: string): { brandName: string; productType: string; packType: string } => {
+      const full = prefix.match(/^(.+?)\s+(Beer|IML|IMFL|Wine|RTD|Duty\s*Paid|Duty\s*Free)\s+([A-Z])\s*$/i);
+      if (full) return { brandName: full[1].trim(), productType: full[2].trim(), packType: full[3].trim() };
+      const alt = prefix.match(/^(.+?)\s+([A-Z])\s*$/);
+      if (alt) return { brandName: alt[1].trim(), productType: "", packType: alt[2].trim() };
+      return { brandName: prefix.trim(), productType: "", packType: "" };
+    };
 
-    const typeMatch = beforeSize.match(
-      /^(.+?)\s+(Beer|IML|IMFL|Wine|RTD|Duty\s*Paid|Duty\s*Free)\s+([A-Z])\s*$/i,
-    );
-    let brandName = "",
-      productType = "",
-      packType = "";
-    if (typeMatch) {
-      brandName = typeMatch[1].trim();
-      productType = typeMatch[2].trim();
-      packType = typeMatch[3].trim();
+    // Helper: extract type/pack from a mid-segment (between sizes).
+    const extractTypePack = (seg: string): { productType: string; packType: string } => {
+      const m = seg.match(/(Beer|IML|IMFL|Wine|RTD|Duty\s*Paid|Duty\s*Free)\s+([A-Z])\s*$/i);
+      if (m) return { productType: m[1].trim(), packType: m[2].trim() };
+      const pm = seg.match(/([A-Z])\s*$/);
+      if (pm) return { productType: "", packType: pm[1].trim() };
+      return { productType: "", packType: "" };
+    };
+
+    // Helper: parse qty/rate/total from a number segment.
+    const parseNums = (seg: string): { qtyCases: number; qtyBottles: number; ratePerCase: string; unitRate: string; totalAmt: string } => {
+      const nums = (seg.match(/[\d,]+\.?\d*/g) || []).map(cleanNum);
+      if (nums.length >= 4) {
+        return { qtyCases: parseInt(nums[0]) || 0, qtyBottles: parseInt(nums[1]) || 0, ratePerCase: nums[2], unitRate: nums[nums.length - 2], totalAmt: nums[nums.length - 1] };
+      } else if (nums.length === 3) {
+        return { qtyCases: parseInt(nums[0]) || 0, qtyBottles: 0, ratePerCase: nums[1], unitRate: "0", totalAmt: nums[2] };
+      }
+      return { qtyCases: 0, qtyBottles: 0, ratePerCase: "0", unitRate: "0", totalAmt: "0" };
+    };
+
+    if (sizeHits.length === 1) {
+      // ── Single-size row (original logic) ──────────────────────────────────
+      const sizeStr = sizeHits[0][0];
+      const sizeIdx = sizeHits[0].index!;
+      const packSize = sizeStr.replace(/\s+/g, " ").replace(/\s*[x×]\s*/i, " / ").trim();
+      const beforeSize = rest.substring(0, sizeIdx).trim();
+      const afterSize  = rest.substring(sizeIdx + sizeStr.length).trim();
+
+      const { brandName, productType, packType } = extractBrandTypePack(beforeSize);
+      const { qtyCases, qtyBottles, ratePerCase, unitRate, totalAmt } = parseNums(afterSize);
+
+      parsedOrders.push({
+        ...EMPTY_ORDER,
+        brandNumber,
+        brandName: brandName.replace(/\s+/g, " ").trim(),
+        productType,
+        packType,
+        packSize,
+        qtyCasesDelivered: qtyCases,
+        qtyBottlesDelivered: qtyBottles,
+        ratePerCase,
+        unitRatePerBottle: unitRate,
+        totalAmount: totalAmt,
+        invoiceDate,
+        icdcNumber,
+      });
     } else {
-      const altMatch = beforeSize.match(/^(.+?)\s+([A-Z])\s*$/);
-      if (altMatch) {
-        brandName = altMatch[1].trim();
-        packType = altMatch[2].trim();
-      } else {
-        brandName = beforeSize;
+      // ── Multi-size brand block (e.g. same brand in 48/180ml, 24/375ml, 12/750ml) ──
+      // Extract the shared brand name from the text before the FIRST size.
+      const textBeforeFirst = rest.substring(0, sizeHits[0].index!).trim();
+      const { brandName: commonBrandName, productType: commonProductType } = extractBrandTypePack(textBeforeFirst);
+
+      for (let s = 0; s < sizeHits.length; s++) {
+        const hit      = sizeHits[s];
+        const sizeStr  = hit[0];
+        const sizeStart = hit.index!;
+        const sizeEnd   = sizeStart + sizeStr.length;
+
+        // Segment before this size (from end of previous size, or start of rest for s=0)
+        const prevEnd  = s === 0 ? 0 : sizeHits[s - 1].index! + sizeHits[s - 1][0].length;
+        const segBefore = rest.substring(prevEnd, sizeStart).trim();
+
+        // Segment after this size (until start of next size, or end of rest)
+        const nextStart = s + 1 < sizeHits.length ? sizeHits[s + 1].index! : rest.length;
+        const segAfter  = rest.substring(sizeEnd, nextStart).trim();
+
+        // Extract type/pack from the segment preceding this size
+        const { productType: subType, packType: subPack } = s === 0
+          ? { productType: commonProductType, packType: extractBrandTypePack(segBefore).packType }
+          : extractTypePack(segBefore);
+
+        const packSize = sizeStr.replace(/\s+/g, " ").replace(/\s*[x×]\s*/i, " / ").trim();
+        const { qtyCases, qtyBottles, ratePerCase, unitRate, totalAmt } = parseNums(segAfter);
+
+        parsedOrders.push({
+          ...EMPTY_ORDER,
+          brandNumber,
+          brandName: commonBrandName.replace(/\s+/g, " ").trim(),
+          productType: subType,
+          packType: subPack,
+          packSize,
+          qtyCasesDelivered: qtyCases,
+          qtyBottlesDelivered: qtyBottles,
+          ratePerCase,
+          unitRatePerBottle: unitRate,
+          totalAmount: totalAmt,
+          invoiceDate,
+          icdcNumber,
+        });
       }
     }
-
-    const cleanNum = (s: string | undefined) =>
-      (s || "0").replace(/,/g, "").trim();
-    const nums = afterSize.match(/[\d,]+\.?\d*/g) || [];
-
-    let qtyCases = 0,
-      qtyBottles = 0,
-      ratePerCase = "0",
-      unitRate = "0",
-      totalAmt = "0";
-    if (nums.length >= 4) {
-      qtyCases = parseInt(cleanNum(nums[0])) || 0;
-      qtyBottles = parseInt(cleanNum(nums[1])) || 0;
-      ratePerCase = cleanNum(nums[2]);
-      unitRate = cleanNum(nums[nums.length - 2]);
-      totalAmt = cleanNum(nums[nums.length - 1]);
-    } else if (nums.length === 3) {
-      qtyCases = parseInt(cleanNum(nums[0])) || 0;
-      qtyBottles = 0;
-      ratePerCase = cleanNum(nums[1]);
-      totalAmt = cleanNum(nums[2]);
-    }
-
-    parsedOrders.push({
-      ...EMPTY_ORDER,
-      brandNumber,
-      brandName: brandName.replace(/\s+/g, " ").trim(),
-      productType,
-      packType,
-      packSize,
-      qtyCasesDelivered: qtyCases,
-      qtyBottlesDelivered: qtyBottles,
-      ratePerCase,
-      unitRatePerBottle: unitRate,
-      totalAmount: totalAmt,
-      invoiceDate,
-      icdcNumber,
-    });
   }
 
   if (parsedOrders.length === 0) {
