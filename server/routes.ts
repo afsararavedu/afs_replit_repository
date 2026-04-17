@@ -1625,35 +1625,6 @@ export async function registerRoutes(
     }
   });
 
-  return httpServer;
-}
-
-async function seedDatabase() {
-  // Create admin and employee users if they don't exist
-  const adminUser = await storage.getUserByUsername("admin");
-  if (!adminUser) {
-    const hashedPassword = await bcrypt.hash("admin123", 10);
-    await storage.createUser({
-      username: "admin",
-      password: hashedPassword,
-      role: "admin",
-      tempPassword: null,
-      mustResetPassword: false,
-    });
-  }
-
-  const employeeUser = await storage.getUserByUsername("employee");
-  if (!employeeUser) {
-    const hashedPassword = await bcrypt.hash("employee123", 10);
-    await storage.createUser({
-      username: "employee",
-      password: hashedPassword,
-      role: "employee",
-      tempPassword: null,
-      mustResetPassword: false,
-    });
-  }
-
   // ─── Expense Categories ───────────────────────────────────────────────────
   app.get("/api/expense-categories", async (req, res) => {
     const type = req.query.type as string | undefined;
@@ -1741,4 +1712,32 @@ async function seedDatabase() {
     res.json({ success: true });
   });
 
+  return httpServer;
+}
+
+async function seedDatabase() {
+  // Create admin and employee users if they don't exist
+  const adminUser = await storage.getUserByUsername("admin");
+  if (!adminUser) {
+    const hashedPassword = await bcrypt.hash("admin123", 10);
+    await storage.createUser({
+      username: "admin",
+      password: hashedPassword,
+      role: "admin",
+      tempPassword: null,
+      mustResetPassword: false,
+    });
+  }
+
+  const employeeUser = await storage.getUserByUsername("employee");
+  if (!employeeUser) {
+    const hashedPassword = await bcrypt.hash("employee123", 10);
+    await storage.createUser({
+      username: "employee",
+      password: hashedPassword,
+      role: "employee",
+      tempPassword: null,
+      mustResetPassword: false,
+    });
+  }
 }
