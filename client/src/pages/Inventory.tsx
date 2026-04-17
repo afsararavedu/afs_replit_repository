@@ -423,7 +423,11 @@ export default function Inventory() {
       ]);
       setDirtyOrderMap(new Map());
       setPendingDeleteOrderIds(new Set());
+      // Invalidate orders and all daily-sales queries so Sales page re-fetches new stock values
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: [api.sales.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sales/prevday"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/stock"] });
       toast({
         title: "Orders Updated",
         description: `${modifiedRows.length > 0 ? `${modifiedRows.length} row(s) updated` : ""}${modifiedRows.length > 0 && deleteIds.length > 0 ? ", " : ""}${deleteIds.length > 0 ? `${deleteIds.length} row(s) deleted` : ""}.`,
