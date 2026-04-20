@@ -335,8 +335,8 @@ export default function Sales() {
           newCs,
           newBtls,
           totalStock,
-          s.closingBalanceCases ?? 0,
-          s.closingBalanceBottles ?? 0,
+          touchedClosingIds.has(s.id) ? (s.closingBalanceCases ?? 0) : "",
+          touchedClosingIds.has(s.id) ? (s.closingBalanceBottles ?? 0) : "",
           s.breakageBottles ?? "",
         ];
       }),
@@ -350,7 +350,7 @@ export default function Sales() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Sales Template");
     XLSX.writeFile(wb, `sales_template_${selectedDate}.xlsx`);
-  }, [localSales, selectedDate, toast]);
+  }, [localSales, selectedDate, toast, touchedClosingIds]);
 
   // Upload Excel and apply values into localSales (same calculation as handleInputChange)
   const handleUploadExcel = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
