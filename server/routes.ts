@@ -1069,7 +1069,7 @@ export async function registerRoutes(
         return null;
       };
 
-      const norm = (s: string) => String(s).toLowerCase().replace(/[\s_\-:.()]/g, "");
+      const norm = (s: string) => String(s).toLowerCase().replace(/[\s_\-:.()\\/]/g, "");
       const COL: Record<string, string> = {
         saledate: "saleDate", date: "saleDate",
         brandno: "brandNumber", brandnumber: "brandNumber",
