@@ -1237,7 +1237,7 @@ export default function Sales() {
                         ) : (
                           <input
                             type="number" min="0"
-                            value={touchedClosingIds.has(item.id) ? (item.closingBalanceCases ?? 0) : ""}
+                            value={item.closingBalanceCases ?? 0}
                             onChange={(e) => handleInputChange(item.id, "closingBalanceCases", e.target.value)}
                             data-testid={`input-closing-cases-${item.id}`}
                             className="w-full text-center p-1 rounded-md border border-orange-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none font-bold text-foreground bg-white shadow-sm"
@@ -1255,7 +1255,7 @@ export default function Sales() {
                         ) : (
                           <input
                             type="number" min="0"
-                            value={touchedClosingIds.has(item.id) ? (item.closingBalanceBottles ?? 0) : ""}
+                            value={item.closingBalanceBottles ?? 0}
                             onChange={(e) => handleInputChange(item.id, "closingBalanceBottles", e.target.value)}
                             data-testid={`input-closing-bottles-${item.id}`}
                             className="w-full text-center p-1 rounded-md border border-orange-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none font-bold text-foreground bg-white shadow-sm"
