@@ -494,11 +494,15 @@ export default function Sales() {
         const mrp          = parseFloat(s.mrp as string) || 0;
         const totalStock   = opBalBtls + (qtyPerCase * newStockCs) + newStockBtls;
 
-        // Rows not previously touched: no sales — closing = total stock
-        const isTouched = (closingCs > 0 || closingBtls > 0 || (s.soldBottles || 0) > 0);
+        // Rows not previously touched: no sales — pre-fill closing with actual stock
+        const isTouched = newTouched.has(s.id);
         if (!isTouched) {
+          const defaultCs   = qtyPerCase > 0 ? Math.floor(totalStock / qtyPerCase) : 0;
+          const defaultBtls = qtyPerCase > 0 ? totalStock % qtyPerCase : totalStock;
           return {
             ...s,
+            closingBalanceCases: defaultCs,
+            closingBalanceBottles: defaultBtls,
             soldBottles: 0,
             saleValue: "0.00",
             totalSaleValue: "0.00",
@@ -617,8 +621,8 @@ export default function Sales() {
       return;
     }
 
-    // Untouched items → no sales: closing = total stock carries forward
-    const dataToSave = localSales.map((item) => {
+    // Untouched items → no sales: send 0s to server so DB stays clean
+    const serverData = localSales.map((item) => {
       if (!touchedClosingIds.has(item.id)) {
         const totalStk =
           (item.openingBalanceBottles || 0) +
@@ -638,11 +642,14 @@ export default function Sales() {
       return item;
     });
 
-    // Reflect the corrected values in the UI immediately
-    setLocalSales(dataToSave);
+    // Only update touched rows in the UI — keep pre-filled defaults for untouched rows (no flash)
+    setLocalSales(prev => prev.map(item => {
+      if (!touchedClosingIds.has(item.id)) return item;
+      return serverData.find(s => s.id === item.id) ?? item;
+    }));
 
     const deleteIdsArray = Array.from(pendingDeleteIds);
-    updateSales({ data: dataToSave, date: selectedDate, deleteIds: deleteIdsArray }, {
+    updateSales({ data: serverData, date: selectedDate, deleteIds: deleteIdsArray }, {
       onSuccess: () => {
         setPendingDeleteIds(new Set());
         toast({
