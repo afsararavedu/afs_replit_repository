@@ -1048,18 +1048,22 @@ export async function registerRoutes(
 
       // Excel date serial → YYYY-MM-DD
       const toDateStr = (raw: any): string | null => {
-        if (!raw && raw !== 0) return null;
+        if (raw === undefined || raw === null || raw === "") return null;
         if (typeof raw === "number") {
-          const d = XLSX.SSF.parse_date_code(raw);
-          if (!d) return null;
-          const mm = String(d.m).padStart(2, "0");
-          const dd = String(d.d).padStart(2, "0");
-          return `${d.y}-${mm}-${dd}`;
+          // Excel stores dates as days since 1900-01-00 (with a 1900 leap-year bug)
+          const utcMs = (raw - 25569) * 86400 * 1000;
+          const d = new Date(utcMs);
+          if (isNaN(d.getTime())) return null;
+          const yyyy = d.getUTCFullYear();
+          const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+          const dd = String(d.getUTCDate()).padStart(2, "0");
+          return `${yyyy}-${mm}-${dd}`;
         }
         const s = String(raw).trim();
-        // Try DD/MM/YYYY or YYYY-MM-DD
+        // Try DD/MM/YYYY or DD-MM-YYYY
         const ddmm = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
         if (ddmm) return `${ddmm[3]}-${ddmm[2].padStart(2,"0")}-${ddmm[1].padStart(2,"0")}`;
+        // Try YYYY-MM-DD or YYYY/MM/DD
         const iso = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
         if (iso) return `${iso[1]}-${iso[2].padStart(2,"0")}-${iso[3].padStart(2,"0")}`;
         return null;
