@@ -1,13 +1,37 @@
 import { useRef, useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { FileSpreadsheet, Upload, Download, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { FileSpreadsheet, Download, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 
 interface ImportResult {
   message: string;
   saved: number;
   skipped: number;
+}
+
+function CloudUploadAnimation({ active }: { active: boolean }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3">
+      <div className={active ? "animate-bounce" : ""}>
+        <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+          {/* Cloud body */}
+          <ellipse cx="36" cy="42" rx="26" ry="16" fill="#e0f0ff" stroke="#3b9eed" strokeWidth="2" />
+          <ellipse cx="24" cy="38" rx="14" ry="14" fill="#e0f0ff" stroke="#3b9eed" strokeWidth="2" />
+          <ellipse cx="46" cy="36" rx="16" ry="16" fill="#e0f0ff" stroke="#3b9eed" strokeWidth="2" />
+          {/* Upload arrow */}
+          <line x1="36" y1="50" x2="36" y2="30" stroke="#3b9eed" strokeWidth="3" strokeLinecap="round" />
+          <polyline points="28,38 36,30 44,38" fill="none" stroke="#3b9eed" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          {/* Folder/box at bottom */}
+          <rect x="22" y="54" width="28" height="10" rx="2" fill="#f97316" />
+          <path d="M22 56 Q28 52 30 54 L36 54" stroke="#f97316" strokeWidth="0" fill="#fb923c" />
+          <rect x="22" y="52" width="14" height="4" rx="1" fill="#fb923c" />
+        </svg>
+      </div>
+      {active && (
+        <p className="text-xs text-primary font-medium animate-pulse">Processing…</p>
+      )}
+    </div>
+  );
 }
 
 export function ImportSalesDataTab() {
@@ -67,6 +91,7 @@ export function ImportSalesDataTab() {
 
   return (
     <section className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-5">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -80,7 +105,7 @@ export function ImportSalesDataTab() {
         <a
           href="/sales_import_template.xlsx"
           download="sales_import_template.xlsx"
-          className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
+          className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline flex-shrink-0 ml-4"
           data-testid="link-download-sales-template"
         >
           <Download className="w-4 h-4" />
@@ -88,74 +113,57 @@ export function ImportSalesDataTab() {
         </a>
       </div>
 
-      {/* Required columns reference */}
-      <div className="bg-muted/40 rounded-lg border border-border p-4 text-sm">
-        <p className="font-medium text-foreground mb-2">Required Excel Columns</p>
-        <div className="flex flex-wrap gap-2">
-          {[
-            "Sale Date", "Brand No", "Brand Name", "Size", "Qty/Case",
-            "Opening Bal (Btls)", "New Stock (Cs)", "New Stock (Btls)",
-            "Total Stock", "Cls Bal (Cs)", "Cls Bal (Btls)", "Breakage", "Invoice Date",
-          ].map((col) => (
-            <span
-              key={col}
-              className="px-2 py-0.5 rounded bg-primary/10 text-primary text-xs font-mono"
-            >
-              {col}
-            </span>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          MRP is auto-looked up from your existing stock/MRP records. Sale Date supports DD/MM/YYYY or YYYY-MM-DD formats.
-        </p>
-      </div>
-
-      {/* File picker */}
-      <div
-        className="border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors"
-        onClick={() => fileInputRef.current?.click()}
-        data-testid="dropzone-import-sales"
-      >
-        <FileSpreadsheet className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-        {selectedFile ? (
-          <div className="space-y-1">
-            <p className="font-medium text-foreground">{selectedFile.name}</p>
-            <p className="text-sm text-muted-foreground">
-              {(selectedFile.size / 1024).toFixed(1)} KB · Click to change
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-1">
-            <p className="font-medium text-foreground">Click to select an Excel file</p>
-            <p className="text-sm text-muted-foreground">.xlsx or .xls format only</p>
-          </div>
-        )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          className="hidden"
-          onChange={handleFileChange}
-          data-testid="input-import-sales-file"
-        />
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex gap-3">
-        <Button
-          onClick={handleUpload}
-          disabled={!selectedFile || isUploading}
-          data-testid="button-import-sales-upload"
-          className="flex items-center gap-2"
+      {/* File picker + upload side by side */}
+      <div className="flex gap-4 items-stretch">
+        {/* Left: file drop zone */}
+        <div
+          className="flex-1 border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-primary/5 transition-colors flex flex-col items-center justify-center gap-2"
+          onClick={() => !isUploading && fileInputRef.current?.click()}
+          data-testid="dropzone-import-sales"
         >
-          <Upload className="w-4 h-4" />
-          {isUploading ? "Importing..." : "Import Data"}
-        </Button>
-        {selectedFile && (
-          <Button variant="outline" onClick={handleClear} data-testid="button-import-sales-clear">
-            Clear
+          <FileSpreadsheet className="w-8 h-8 text-muted-foreground" />
+          {selectedFile ? (
+            <>
+              <p className="font-medium text-foreground text-sm">{selectedFile.name}</p>
+              <p className="text-xs text-muted-foreground">{(selectedFile.size / 1024).toFixed(1)} KB · Click to change</p>
+            </>
+          ) : (
+            <>
+              <p className="font-medium text-foreground text-sm">Click to select an Excel file</p>
+              <p className="text-xs text-muted-foreground">.xlsx or .xls format only</p>
+            </>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={handleFileChange}
+            data-testid="input-import-sales-file"
+          />
+        </div>
+
+        {/* Right: animation + button */}
+        <div className="flex flex-col items-center justify-center gap-3 px-6 border border-border rounded-xl bg-muted/20 min-w-[140px]">
+          <CloudUploadAnimation active={isUploading} />
+          <Button
+            onClick={handleUpload}
+            disabled={!selectedFile || isUploading}
+            data-testid="button-import-sales-upload"
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold"
+          >
+            {isUploading ? "Importing…" : "Import Data"}
           </Button>
-        )}
+          {selectedFile && !isUploading && (
+            <button
+              onClick={handleClear}
+              className="text-xs text-muted-foreground hover:text-destructive"
+              data-testid="button-import-sales-clear"
+            >
+              Clear
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Result / Error */}
@@ -183,7 +191,7 @@ export function ImportSalesDataTab() {
         </div>
       )}
 
-      {/* Notes */}
+      {/* Note */}
       <div className="flex items-start gap-2 text-xs text-muted-foreground border-t border-border pt-4">
         <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
         <span>
