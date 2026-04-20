@@ -1,9 +1,9 @@
 import brrLogo from "@assets/brr_solution_logo_1776622112650.jpeg";
+import bgImage from "@assets/Liquor-store-inventory-homepage_1776678987599.png";
 import { useAuth } from "@/hooks/use-auth";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -11,6 +11,7 @@ import { useLocation } from "wouter";
 import { useState, useEffect } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 const loginSchema = z.object({
   username: z.string().min(1, "Username is required"),
@@ -26,10 +27,7 @@ export default function AuthPage() {
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      username: "",
-      password: "",
-    },
+    defaultValues: { username: "", password: "" },
   });
 
   useEffect(() => {
@@ -58,27 +56,32 @@ export default function AuthPage() {
       });
       setShowForgot(false);
     } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-md shadow-xl border-border/40">
-        <CardHeader className="space-y-1 text-center">
-          <img
-            src={brrLogo}
-            alt="BRR IT Solutions"
-            className="w-24 h-24 object-contain mx-auto mb-2"
-          />
-          <CardTitle className="text-2xl font-bold">BRR Liquor Soft Login</CardTitle>
-          <CardDescription>Enter your credentials to access your dashboard</CardDescription>
-        </CardHeader>
-        <CardContent>
+    <div
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{
+        backgroundImage: `url(${bgImage})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-8 pt-8 pb-6">
+          <div className="flex justify-center mb-4">
+            <img
+              src={brrLogo}
+              alt="BRR IT Solutions"
+              className="w-16 h-16 object-contain rounded-full border-2 border-gray-200 shadow"
+            />
+          </div>
+          <h1 className="text-center text-2xl font-bold text-gray-800 mb-1">BRR Liquor Soft Login</h1>
+          <p className="text-center text-sm text-gray-500 mb-6">Enter your credentials to access your dashboard.</p>
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
@@ -86,9 +89,14 @@ export default function AuthPage() {
                 name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Username</FormLabel>
+                    <FormLabel className="text-gray-700 font-medium">Username</FormLabel>
                     <FormControl>
-                      <Input placeholder="Enter username" {...field} />
+                      <Input
+                        placeholder="Enter username"
+                        className="border-gray-300 focus:border-red-400 focus:ring-red-400/20 rounded-md"
+                        data-testid="input-username"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -99,47 +107,60 @@ export default function AuthPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel className="text-gray-700 font-medium">Password</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="Enter password" {...field} />
+                      <Input
+                        type="password"
+                        placeholder="Enter password"
+                        className="border-gray-300 focus:border-red-400 focus:ring-red-400/20 rounded-md"
+                        data-testid="input-password"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full h-11 text-base font-medium" disabled={loginMutation.isPending}>
+              <button
+                type="submit"
+                disabled={loginMutation.isPending}
+                data-testid="button-login"
+                className="w-full h-11 rounded-md text-white font-semibold text-base transition-opacity disabled:opacity-70"
+                style={{ backgroundColor: "#e03a2f" }}
+              >
                 {loginMutation.isPending ? "Logging in..." : "Login"}
-              </Button>
+              </button>
             </form>
           </Form>
-          
-          <div className="mt-6 text-center">
-            <button 
+
+          <div className="mt-5 text-center">
+            <button
               onClick={() => setShowForgot(true)}
-              className="text-sm font-medium text-primary hover:underline"
+              className="text-sm font-medium hover:underline"
+              style={{ color: "#e03a2f" }}
             >
               Forgot Password? (Admin Only)
             </button>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {showForgot && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-sm">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          <Card className="w-full max-w-sm shadow-2xl">
             <CardHeader>
               <CardTitle>Forgot Password</CardTitle>
               <CardDescription>Enter admin username to get a temporary password</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Input 
-                placeholder="Admin Username" 
-                value={forgotUsername} 
-                onChange={(e) => setForgotUsername(e.target.value)} 
+              <Input
+                placeholder="Admin Username"
+                value={forgotUsername}
+                onChange={(e) => setForgotUsername(e.target.value)}
               />
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setShowForgot(false)} className="flex-1">Cancel</Button>
-                <Button onClick={handleForgot} className="flex-1">Generate</Button>
+                <Button onClick={handleForgot} className="flex-1" style={{ backgroundColor: "#e03a2f" }}>Generate</Button>
               </div>
             </CardContent>
           </Card>
