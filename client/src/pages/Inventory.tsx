@@ -585,22 +585,24 @@ export default function Inventory() {
     <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
 
       <Tabs defaultValue="import">
-        <TabsList className="mb-6 border border-border bg-secondary/30 p-1 rounded-xl">
-          <TabsTrigger value="import" data-testid="tab-import-invoice" className="rounded-lg px-5 py-2 font-medium">
-            <UploadCloud className="w-4 h-4 mr-2" />
-            Import Invoice
-          </TabsTrigger>
-          <TabsTrigger value="update-mrp" data-testid="tab-update-sales-mrp" className="rounded-lg px-5 py-2 font-medium">
-            <Tag className="w-4 h-4 mr-2" />
-            Update Sales MRP
-          </TabsTrigger>
-          {user?.role === "admin" && (
-            <TabsTrigger value="import-sales" data-testid="tab-import-sales" className="rounded-lg px-5 py-2 font-medium">
-              <FileSpreadsheet className="w-4 h-4 mr-2" />
-              Import Sales Data
+        <div className="mb-6 overflow-x-auto pb-1">
+          <TabsList className="border border-border bg-secondary/30 p-1 rounded-xl inline-flex min-w-max">
+            <TabsTrigger value="import" data-testid="tab-import-invoice" className="rounded-lg px-4 py-2 font-medium text-sm whitespace-nowrap">
+              <UploadCloud className="w-4 h-4 mr-2 flex-shrink-0" />
+              Import Invoice
             </TabsTrigger>
-          )}
-        </TabsList>
+            <TabsTrigger value="update-mrp" data-testid="tab-update-sales-mrp" className="rounded-lg px-4 py-2 font-medium text-sm whitespace-nowrap">
+              <Tag className="w-4 h-4 mr-2 flex-shrink-0" />
+              Update Sales MRP
+            </TabsTrigger>
+            {user?.role === "admin" && (
+              <TabsTrigger value="import-sales" data-testid="tab-import-sales" className="rounded-lg px-4 py-2 font-medium text-sm whitespace-nowrap">
+                <FileSpreadsheet className="w-4 h-4 mr-2 flex-shrink-0" />
+                Import Sales Data
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </div>
 
         {/* ==================== TAB 1: IMPORT INVOICE ==================== */}
         <TabsContent value="import" className="space-y-8">

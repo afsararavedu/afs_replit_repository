@@ -11,7 +11,8 @@ import {
   Receipt,
   LogOut,
   Phone,
-  Info
+  Info,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -29,39 +30,56 @@ const NAV_ITEMS = [
   { label: "Contact Us", href: "/contact", icon: Phone },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  drawerOpen?: boolean;
+  onDrawerClose?: () => void;
+}
+
+export function Sidebar({ drawerOpen = false, onDrawerClose }: SidebarProps) {
   const [location] = useLocation();
   const { user, logoutMutation } = useAuth();
 
-  const filteredNavItems = NAV_ITEMS.filter(item => 
+  const filteredNavItems = NAV_ITEMS.filter(item =>
     !item.role || (user && user.role === item.role)
   );
 
-  return (
-    <div className="hidden md:flex flex-col w-64 h-screen bg-card border-r border-border fixed left-0 top-0 z-50 shadow-xl shadow-black/5 select-none">
-      <div className="p-6 flex items-center gap-3">
-        <img src={brrLogo} alt="BRR IT Solutions" className="w-10 h-10 object-contain rounded-lg" />
-        <div>
-          <h1 className="font-display font-bold text-lg text-foreground leading-none">BRR Liquor Soft</h1>
-          <p className="text-xs text-muted-foreground font-medium mt-1">{user?.role === 'admin' ? 'Admin' : 'Employee'} Portal</p>
+  const navContent = (
+    <>
+      <div className="p-5 flex items-center gap-3 border-b border-border/50">
+        <img src={brrLogo} alt="BRR IT Solutions" className="w-10 h-10 object-contain rounded-lg flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <h1 className="font-display font-bold text-base text-foreground leading-none truncate">BRR Liquor Soft</h1>
+          <p className="text-xs text-muted-foreground font-medium mt-1">
+            {user?.role === "admin" ? "Admin" : "Employee"} Portal
+          </p>
         </div>
+        {onDrawerClose && (
+          <button
+            onClick={onDrawerClose}
+            className="lg:hidden p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground flex-shrink-0"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
-      <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1">
+      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-0.5">
         {filteredNavItems.map((item) => {
           const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
           return (
             <Link key={item.href} href={item.href}>
-              <div 
+              <div
+                onClick={onDrawerClose}
                 className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 cursor-pointer group",
-                  isActive 
-                    ? "bg-primary/10 text-primary shadow-sm" 
+                  "flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all duration-200 cursor-pointer group",
+                  isActive
+                    ? "bg-primary/10 text-primary shadow-sm"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 <item.icon className={cn(
-                  "w-5 h-5 transition-colors",
+                  "w-5 h-5 transition-colors flex-shrink-0",
                   isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
                 )} />
                 <span className="font-medium text-sm">{item.label}</span>
@@ -74,19 +92,41 @@ export function Sidebar() {
         })}
       </div>
 
-      <div className="p-4 mt-auto border-t border-border/50">
-        <div className="px-4 py-3 mb-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">User</p>
+      <div className="p-4 border-t border-border/50">
+        <div className="px-4 py-2 mb-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Logged in as</p>
           <p className="text-sm font-medium truncate">{user?.username}</p>
         </div>
-        <button 
+        <button
           onClick={() => logoutMutation.mutate()}
           className="flex items-center gap-3 px-4 py-3 rounded-xl w-full text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
         >
-          <LogOut className="w-5 h-5" />
+          <LogOut className="w-5 h-5 flex-shrink-0" />
           <span className="font-medium text-sm">Logout</span>
         </button>
       </div>
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      {/* ── Desktop sidebar (lg+): always visible, fixed on left ── */}
+      <div className="hidden lg:flex flex-col w-64 h-screen bg-card border-r border-border fixed left-0 top-0 z-50 shadow-xl shadow-black/5 select-none">
+        {navContent}
+      </div>
+
+      {/* ── Tablet drawer (< lg): slide-in overlay ── */}
+      {drawerOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+            onClick={onDrawerClose}
+          />
+          <div className="fixed left-0 top-0 h-screen w-72 bg-card border-r border-border z-50 shadow-2xl flex flex-col lg:hidden animate-in slide-in-from-left duration-200 select-none">
+            {navContent}
+          </div>
+        </>
+      )}
+    </>
   );
 }

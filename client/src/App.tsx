@@ -1,4 +1,5 @@
 import { Switch, Route, Redirect } from "wouter";
+import { useState } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -31,13 +32,18 @@ function ProtectedRoute({ component: Component, path, role }: { component: React
 
 function Router() {
   const { user } = useAuth();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
     <div className="flex min-h-screen bg-background font-sans">
-      {user && !user.mustResetPassword && <Sidebar />}
-      <div className={`flex-1 ${user && !user.mustResetPassword ? 'md:pl-64' : ''} flex flex-col min-h-screen transition-all`}>
-        {user && !user.mustResetPassword && <Header />}
-        <main className="flex-1 p-8 overflow-x-hidden">
+      {user && !user.mustResetPassword && (
+        <Sidebar drawerOpen={drawerOpen} onDrawerClose={() => setDrawerOpen(false)} />
+      )}
+      <div className={`flex-1 ${user && !user.mustResetPassword ? 'lg:pl-64' : ''} flex flex-col min-h-screen transition-all`}>
+        {user && !user.mustResetPassword && (
+          <Header onMenuClick={() => setDrawerOpen(true)} />
+        )}
+        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-x-hidden">
           <div className="max-w-[1600px] mx-auto">
             <Switch>
               <Route path="/auth" component={AuthPage} />
