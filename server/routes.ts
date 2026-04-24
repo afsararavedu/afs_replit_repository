@@ -1265,6 +1265,20 @@ export async function registerRoutes(
     res.json({ success: true });
   });
 
+  // Bulk delete sales records
+  app.delete("/api/sales", async (req, res) => {
+    try {
+      const schema = z.object({ ids: z.array(z.number().int().positive()) });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid ids array" });
+      const { ids } = parsed.data;
+      await Promise.all(ids.map(id => storage.deleteDailySale(id)));
+      res.json({ success: true, deleted: ids.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Daily stock by date
   app.get("/api/daily-stock", async (req, res) => {
     const date = req.query.date as string | undefined;

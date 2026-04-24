@@ -229,6 +229,8 @@ export default function Inventory() {
   const [showMrpFormDialog, setShowMrpFormDialog] = useState(false);
   const [mrpSelectedIds, setMrpSelectedIds] = useState<Set<number>>(new Set());
   const [isBulkDeletingMrp, setIsBulkDeletingMrp] = useState(false);
+  const [srSelectedIds, setSrSelectedIds] = useState<Set<number>>(new Set());
+  const [isBulkDeletingSr, setIsBulkDeletingSr] = useState(false);
 
   // ---- Sales Records Tab State ----
   const srFileInputRef = useRef<HTMLInputElement>(null);
@@ -760,6 +762,39 @@ export default function Inventory() {
       setIsBulkDeletingMrp(false);
     }
   };
+  const visibleSrIds = displaySales.slice((srPage - 1) * srPageSize, srPage * srPageSize).map(r => r.id);
+  const allVisibleSrSelected = visibleSrIds.length > 0 && visibleSrIds.every(id => srSelectedIds.has(id));
+  const someVisibleSrSelected = visibleSrIds.some(id => srSelectedIds.has(id)) && !allVisibleSrSelected;
+
+  const toggleSrSelectAll = () => {
+    if (allVisibleSrSelected) {
+      setSrSelectedIds(prev => { const next = new Set(prev); visibleSrIds.forEach(id => next.delete(id)); return next; });
+    } else {
+      setSrSelectedIds(prev => { const next = new Set(prev); visibleSrIds.forEach(id => next.add(id)); return next; });
+    }
+  };
+
+  const toggleSrRow = (id: number) => {
+    setSrSelectedIds(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+
+  const handleBulkDeleteSr = async () => {
+    const ids = Array.from(srSelectedIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} selected sales record${ids.length === 1 ? "" : "s"}?`)) return;
+    setIsBulkDeletingSr(true);
+    try {
+      await apiRequest("DELETE", "/api/sales", { ids });
+      setSrSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["/api/sales/all"] });
+      toast({ title: `Deleted ${ids.length} record${ids.length === 1 ? "" : "s"}`, className: "bg-green-50 text-green-800" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsBulkDeletingSr(false);
+    }
+  };
+
   const handleMrpBulkUpload = async () => {
     if (!mrpUploadFile) return; setIsMrpUploading(true);
     try {
@@ -1747,6 +1782,33 @@ export default function Inventory() {
               </div>
             </div>
 
+            {/* Bulk action toolbar */}
+            {srSelectedIds.size > 0 && (
+              <div className="flex items-center gap-3 px-4 py-2.5 bg-primary/5 border-b border-border">
+                <span className="text-sm font-medium text-foreground" data-testid="text-sr-selected-count">
+                  {srSelectedIds.size} selected
+                </span>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="gap-1.5 h-7 text-xs"
+                  onClick={handleBulkDeleteSr}
+                  disabled={isBulkDeletingSr}
+                  data-testid="button-sr-bulk-delete"
+                >
+                  {isBulkDeletingSr ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  Delete {srSelectedIds.size} selected
+                </Button>
+                <button
+                  onClick={() => setSrSelectedIds(new Set())}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  data-testid="button-sr-clear-selection"
+                >
+                  Clear selection
+                </button>
+              </div>
+            )}
+
             {/* Sales Records Table */}
             {isLoadingSales ? (
               <div className="flex items-center justify-center py-16">
@@ -1778,6 +1840,14 @@ export default function Inventory() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border bg-muted/30">
+                        <th className="w-10 px-3 py-2.5">
+                          <Checkbox
+                            checked={someVisibleSrSelected ? "indeterminate" : allVisibleSrSelected}
+                            onCheckedChange={toggleSrSelectAll}
+                            data-testid="checkbox-sr-select-all"
+                            aria-label="Select all sales records rows"
+                          />
+                        </th>
                         <th className="py-2.5 px-3 text-left text-xs font-semibold text-muted-foreground w-10">#</th>
                         <th
                           className="py-2.5 px-3 text-left text-xs font-semibold text-muted-foreground cursor-pointer hover:text-foreground select-none"
@@ -1817,8 +1887,16 @@ export default function Inventory() {
                         <tr
                           key={row.id}
                           data-testid={`row-sales-record-${row.id}`}
-                          className="border-b border-border/60 hover:bg-muted/30 transition-colors"
+                          className={`border-b border-border/60 hover:bg-muted/30 transition-colors ${srSelectedIds.has(row.id) ? "bg-primary/5" : ""}`}
                         >
+                          <td className="px-3 py-2.5">
+                            <Checkbox
+                              checked={srSelectedIds.has(row.id)}
+                              onCheckedChange={() => toggleSrRow(row.id)}
+                              data-testid={`checkbox-sr-row-${row.id}`}
+                              aria-label={`Select sales record ${row.id}`}
+                            />
+                          </td>
                           <td className="py-2.5 px-3 text-muted-foreground text-xs">{(srPage - 1) * srPageSize + idx + 1}</td>
                           <td className="py-2.5 px-3 font-medium text-foreground">{row.saleDate || '—'}</td>
                           <td className="py-2.5 px-3 text-muted-foreground">{row.brandNumber}</td>
