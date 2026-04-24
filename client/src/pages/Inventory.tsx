@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from "react";
+import { format, parse, isValid } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
 import { useOrders, useBulkCreateOrders, useUploadFile } from "@/hooks/use-orders";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -20,6 +22,7 @@ import {
   Pencil,
   ChevronsUpDown,
   Check,
+  CalendarIcon,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -112,6 +115,7 @@ export default function Inventory() {
 
   // Saved Orders Filter State
   const [filterInvoiceDate, setFilterInvoiceDate] = useState("");
+  const [invoiceDatePickerOpen, setInvoiceDatePickerOpen] = useState(false);
   const [filterIcdcNumber, setFilterIcdcNumber] = useState("");
   const [filterBrandNumber, setFilterBrandNumber] = useState("");
   const [appliedFilters, setAppliedFilters] = useState<{ invoiceDate?: string; icdcNumber?: string; brandNumber?: string }>({});
@@ -692,14 +696,38 @@ export default function Inventory() {
               <div className="flex flex-wrap items-end gap-4">
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-muted-foreground">Invoice Date</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. 30-Dec-2025"
-                    className="input-field w-48"
-                    value={filterInvoiceDate}
-                    onChange={(e) => setFilterInvoiceDate(e.target.value)}
-                    data-testid="input-filter-invoice-date"
-                  />
+                  <Popover open={invoiceDatePickerOpen} onOpenChange={setInvoiceDatePickerOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        data-testid="input-filter-invoice-date"
+                        className="flex items-center gap-2 w-48 bg-background border border-input rounded-lg px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+                      >
+                        <CalendarIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                        <span className={filterInvoiceDate ? "text-foreground font-medium" : "text-muted-foreground"}>
+                          {filterInvoiceDate || "Pick a date..."}
+                        </span>
+                        {filterInvoiceDate && (
+                          <X
+                            className="w-3.5 h-3.5 text-muted-foreground ml-auto hover:text-destructive"
+                            onClick={(e) => { e.stopPropagation(); setFilterInvoiceDate(""); }}
+                          />
+                        )}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={(() => { const d = filterInvoiceDate ? parse(filterInvoiceDate, "d-MMM-yyyy", new Date()) : undefined; return d && isValid(d) ? d : undefined; })()}
+                        onSelect={(date) => {
+                          if (date) {
+                            setFilterInvoiceDate(format(date, "d-MMM-yyyy"));
+                          }
+                          setInvoiceDatePickerOpen(false);
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-xs font-medium text-muted-foreground">ICDC Number</label>
