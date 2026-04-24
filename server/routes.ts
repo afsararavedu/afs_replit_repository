@@ -953,6 +953,20 @@ export async function registerRoutes(
     }
   });
 
+  app.delete("/api/sales-mrp", async (req, res) => {
+    try {
+      const schema = z.object({ ids: z.array(z.number().int().positive()) });
+      const parsed = schema.safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ message: "Invalid ids array" });
+      const { ids } = parsed.data;
+      const results = await Promise.all(ids.map(id => storage.deleteSalesMrpDetail(id)));
+      const deleted = results.filter(Boolean).length;
+      res.json({ success: true, deleted });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Bulk upload Sales MRP from Excel
   app.post("/api/sales-mrp/bulk-upload", upload.single("file"), async (req, res) => {
     try {

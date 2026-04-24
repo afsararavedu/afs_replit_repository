@@ -216,6 +216,8 @@ export default function Inventory() {
   const [mrpPendingBrandNo, setMrpPendingBrandNo] = useState('');
   const [mrpPendingBrandName, setMrpPendingBrandName] = useState('');
   const [showMrpFormDialog, setShowMrpFormDialog] = useState(false);
+  const [mrpSelectedIds, setMrpSelectedIds] = useState<Set<number>>(new Set());
+  const [isBulkDeletingMrp, setIsBulkDeletingMrp] = useState(false);
 
   // ---- Sales Records Tab State ----
   const srFileInputRef = useRef<HTMLInputElement>(null);
@@ -713,6 +715,39 @@ export default function Inventory() {
     saveSalesMrp({ brandNumber: mrpBrandNumber, brandName: mrpBrandName, size: mrpSize, productType: mrpProductType, salesMrp: String(mrpValue) });
   };
   const handleDeleteMrp = (id: number) => { if (!confirm("Delete this Sales MRP record?")) return; deleteSalesMrp(id); };
+
+  const visibleMrpIds = displayMrpRecords.map(r => r.id);
+  const allVisibleMrpSelected = visibleMrpIds.length > 0 && visibleMrpIds.every(id => mrpSelectedIds.has(id));
+  const someVisibleMrpSelected = visibleMrpIds.some(id => mrpSelectedIds.has(id)) && !allVisibleMrpSelected;
+
+  const toggleMrpSelectAll = () => {
+    if (allVisibleMrpSelected) {
+      setMrpSelectedIds(prev => { const next = new Set(prev); visibleMrpIds.forEach(id => next.delete(id)); return next; });
+    } else {
+      setMrpSelectedIds(prev => { const next = new Set(prev); visibleMrpIds.forEach(id => next.add(id)); return next; });
+    }
+  };
+
+  const toggleMrpRow = (id: number) => {
+    setMrpSelectedIds(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  };
+
+  const handleBulkDeleteMrp = async () => {
+    const ids = Array.from(mrpSelectedIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} selected MRP record${ids.length === 1 ? "" : "s"}?`)) return;
+    setIsBulkDeletingMrp(true);
+    try {
+      await apiRequest("DELETE", "/api/sales-mrp", { ids });
+      setMrpSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["/api/sales-mrp"] });
+      toast({ title: `Deleted ${ids.length} record${ids.length === 1 ? "" : "s"}`, className: "bg-green-50 text-green-800" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsBulkDeletingMrp(false);
+    }
+  };
   const handleMrpBulkUpload = async () => {
     if (!mrpUploadFile) return; setIsMrpUploading(true);
     try {
@@ -1406,6 +1441,33 @@ export default function Inventory() {
               </div>
             )}
 
+            {/* Bulk action toolbar */}
+            {mrpSelectedIds.size > 0 && (
+              <div className="flex items-center gap-3 px-4 py-2.5 bg-primary/5 border-b border-border">
+                <span className="text-sm font-medium text-foreground" data-testid="text-mrp-selected-count">
+                  {mrpSelectedIds.size} selected
+                </span>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="gap-1.5 h-7 text-xs"
+                  onClick={handleBulkDeleteMrp}
+                  disabled={isBulkDeletingMrp}
+                  data-testid="button-mrp-bulk-delete"
+                >
+                  {isBulkDeletingMrp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  Delete {mrpSelectedIds.size} selected
+                </Button>
+                <button
+                  onClick={() => setMrpSelectedIds(new Set())}
+                  className="text-xs text-muted-foreground hover:text-foreground"
+                  data-testid="button-mrp-clear-selection"
+                >
+                  Clear selection
+                </button>
+              </div>
+            )}
+
             {/* MRP Table / Empty state */}
             {isLoadingMrp ? (
               <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
@@ -1415,7 +1477,12 @@ export default function Inventory() {
                   <thead>
                     <tr className="border-b border-border bg-muted/40">
                       <th className="w-10 px-3 py-2.5">
-                        <Checkbox disabled data-testid="checkbox-mrp-select-all" />
+                        <Checkbox
+                          checked={someVisibleMrpSelected ? "indeterminate" : allVisibleMrpSelected}
+                          onCheckedChange={toggleMrpSelectAll}
+                          data-testid="checkbox-mrp-select-all"
+                          aria-label="Select all MRP rows"
+                        />
                       </th>
                       <th className="table-header w-10 text-center uppercase text-[10px] tracking-wider">#</th>
                       <th className="table-header w-24 uppercase text-[10px] tracking-wider">
@@ -1448,9 +1515,14 @@ export default function Inventory() {
                   </thead>
                   <tbody>
                     {displayMrpRecords.map((row, idx) => (
-                      <tr key={row.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors" data-testid={`row-sales-mrp-${row.id}`}>
+                      <tr key={row.id} className={`border-b border-border/50 hover:bg-muted/30 transition-colors ${mrpSelectedIds.has(row.id) ? "bg-primary/5" : ""}`} data-testid={`row-sales-mrp-${row.id}`}>
                         <td className="px-3 py-2.5">
-                          <Checkbox disabled data-testid={`checkbox-mrp-row-${row.id}`} />
+                          <Checkbox
+                            checked={mrpSelectedIds.has(row.id)}
+                            onCheckedChange={() => toggleMrpRow(row.id)}
+                            data-testid={`checkbox-mrp-row-${row.id}`}
+                            aria-label={`Select MRP row ${row.id}`}
+                          />
                         </td>
                         <td className="table-cell text-center text-xs text-muted-foreground">{idx + 1}</td>
                         <td className="table-cell font-mono text-xs text-muted-foreground">{row.brandNumber}</td>
