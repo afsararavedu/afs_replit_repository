@@ -207,6 +207,15 @@ export default function Inventory() {
   const [mrpUploadFile, setMrpUploadFile] = useState<File | null>(null);
   const [isMrpUploading, setIsMrpUploading] = useState(false);
   const [mrpSearch, setMrpSearch] = useState("");
+  const [mrpFilterOpen, setMrpFilterOpen] = useState(false);
+  const [mrpSortOpen, setMrpSortOpen] = useState(false);
+  const [mrpSortField, setMrpSortField] = useState<'brandNumber' | 'brandName' | 'productType' | 'size' | 'salesMrp'>('brandNumber');
+  const [mrpSortDir, setMrpSortDir] = useState<'asc' | 'desc'>('asc');
+  const [mrpFilterBrandNo, setMrpFilterBrandNo] = useState('');
+  const [mrpFilterBrandName, setMrpFilterBrandName] = useState('');
+  const [mrpPendingBrandNo, setMrpPendingBrandNo] = useState('');
+  const [mrpPendingBrandName, setMrpPendingBrandName] = useState('');
+  const [showMrpFormDialog, setShowMrpFormDialog] = useState(false);
 
   // ---- Sales Records Tab State ----
   const srFileInputRef = useRef<HTMLInputElement>(null);
@@ -284,6 +293,7 @@ export default function Inventory() {
       queryClient.invalidateQueries({ queryKey: ["/api/sales-mrp"] });
       toast({ title: "Saved", description: "Sales MRP updated.", className: "bg-green-50 text-green-800" });
       setMrpBrandNumber(""); setMrpBrandName(""); setMrpProductType(""); setMrpSize(""); setMrpValue(""); setMrpEditId(null);
+      setShowMrpFormDialog(false);
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -406,6 +416,55 @@ export default function Inventory() {
       return srSortDir === 'asc' ? cmp : -cmp;
     });
   }, [allSalesData, srSearchQuery, srSortField, srSortDir]);
+
+  const displayMrpRecords = useMemo(() => {
+    let records = [...(salesMrpData || [])];
+    if (mrpSearch.trim()) {
+      const q = mrpSearch.toLowerCase();
+      records = records.filter(r => r.brandNumber.toLowerCase().includes(q) || r.brandName.toLowerCase().includes(q));
+    }
+    if (mrpFilterBrandNo.trim()) {
+      records = records.filter(r => r.brandNumber.toLowerCase().includes(mrpFilterBrandNo.toLowerCase()));
+    }
+    if (mrpFilterBrandName.trim()) {
+      records = records.filter(r => r.brandName.toLowerCase().includes(mrpFilterBrandName.toLowerCase()));
+    }
+    records.sort((a, b) => {
+      let av: any, bv: any;
+      switch (mrpSortField) {
+        case 'brandNumber': av = a.brandNumber; bv = b.brandNumber; break;
+        case 'brandName': av = a.brandName; bv = b.brandName; break;
+        case 'productType': av = a.productType ?? ''; bv = b.productType ?? ''; break;
+        case 'size': av = a.size; bv = b.size; break;
+        case 'salesMrp': av = parseFloat(a.salesMrp as string); bv = parseFloat(b.salesMrp as string); break;
+        default: av = ''; bv = '';
+      }
+      if (av < bv) return mrpSortDir === 'asc' ? -1 : 1;
+      if (av > bv) return mrpSortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return records;
+  }, [salesMrpData, mrpSearch, mrpFilterBrandNo, mrpFilterBrandName, mrpSortField, mrpSortDir]);
+
+  const hasMrpActiveFilters = !!(mrpFilterBrandNo || mrpFilterBrandName);
+
+  const handleMrpOpenFilter = () => {
+    setMrpPendingBrandNo(mrpFilterBrandNo);
+    setMrpPendingBrandName(mrpFilterBrandName);
+    setMrpFilterOpen(true);
+  };
+  const handleMrpApplyFilter = () => {
+    setMrpFilterBrandNo(mrpPendingBrandNo);
+    setMrpFilterBrandName(mrpPendingBrandName);
+    setMrpFilterOpen(false);
+  };
+  const handleMrpResetFilter = () => {
+    setMrpPendingBrandNo('');
+    setMrpPendingBrandName('');
+  };
+  const handleMrpSetSort = (field: typeof mrpSortField, dir: 'asc' | 'desc') => {
+    setMrpSortField(field); setMrpSortDir(dir); setMrpSortOpen(false);
+  };
 
   const handleSrImport = async (file: File) => {
     setIsSrImporting(true);
@@ -647,7 +706,7 @@ export default function Inventory() {
   const handleMrpBrandNumberChange = (val: string) => { setMrpBrandNumber(val); setMrpBrandName(""); setMrpProductType(""); setMrpSize(""); };
   const handleMrpBrandNameChange = (val: string) => { setMrpBrandName(val); setMrpProductType(""); setMrpSize(""); };
   const handleMrpTypeChange = (val: string) => { setMrpProductType(val); setMrpSize(""); };
-  const handleLoadMrpEdit = (row: SalesMrpDetail) => { setMrpEditId(row.id); setMrpBrandNumber(row.brandNumber); setMrpBrandName(row.brandName); setMrpProductType(row.productType ?? ""); setMrpSize(row.size); setMrpValue(parseFloat(row.salesMrp as string)); };
+  const handleLoadMrpEdit = (row: SalesMrpDetail) => { setMrpEditId(row.id); setMrpBrandNumber(row.brandNumber); setMrpBrandName(row.brandName); setMrpProductType(row.productType ?? ""); setMrpSize(row.size); setMrpValue(parseFloat(row.salesMrp as string)); setShowMrpFormDialog(true); };
   const handleSaveMrp = () => {
     if (!mrpBrandNumber || !mrpBrandName || !mrpProductType || !mrpSize || mrpValue === "") { toast({ title: "Validation Error", description: "Fill in all fields.", variant: "destructive" }); return; }
     if (Number(mrpValue) < 0) { toast({ title: "Validation Error", description: "Sales MRP must not be less than 0.", variant: "destructive" }); return; }
@@ -1186,134 +1245,328 @@ export default function Inventory() {
 
         {/* ======= UPDATE SALES MRP TAB CONTENT ======= */}
         {activeView === 'mrp' && (
-          <div className="p-4 space-y-4">
-            {/* Bulk Upload */}
-            <div className="bg-muted/20 rounded-xl p-4 border border-border">
-              <h3 className="text-sm font-semibold mb-2 flex items-center gap-2"><FileSpreadsheet className="w-4 h-4 text-primary" />Import from Excel</h3>
-              <p className="text-xs text-muted-foreground mb-3">Upload .xls/.xlsx with columns: <code className="bg-muted px-1 rounded">brand_number, brand_name, size, sales_mrp, product_type</code></p>
-              <div className="flex items-center gap-3 flex-wrap">
-                <label htmlFor="mrp-file-upload-inline" className="flex items-center gap-2 px-4 py-2 border border-dashed border-border rounded-xl cursor-pointer hover:bg-muted/40 text-sm text-muted-foreground">
-                  <UploadCloud className="w-4 h-4" />
-                  {mrpUploadFile ? <span className="text-foreground font-medium">{mrpUploadFile.name}</span> : "Choose file…"}
-                  <input id="mrp-file-upload-inline" ref={mrpFileInputRef} type="file" accept=".xls,.xlsx,.csv" className="hidden" onChange={e => setMrpUploadFile(e.target.files?.[0] ?? null)} data-testid="input-mrp-file-upload" />
-                </label>
-                {mrpUploadFile && (
-                  <>
-                    <Button onClick={handleMrpBulkUpload} disabled={isMrpUploading} size="sm" data-testid="button-mrp-upload-import">
-                      {isMrpUploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                      {isMrpUploading ? "Importing…" : "Import & Save"}
-                    </Button>
-                    <button onClick={() => { setMrpUploadFile(null); if (mrpFileInputRef.current) mrpFileInputRef.current.value = ""; }} className="p-1.5 text-muted-foreground hover:text-destructive"><X className="w-4 h-4" /></button>
-                  </>
-                )}
+          <>
+            {/* Hidden MRP file input */}
+            <input ref={mrpFileInputRef} type="file" accept=".xls,.xlsx,.csv" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { setMrpUploadFile(f); } }} data-testid="input-mrp-file-upload" />
+
+            {/* MRP Toolbar */}
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-foreground">Sales MRP</span>
+                <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full font-medium" data-testid="text-mrp-count">{salesMrpData?.length ?? 0}</span>
+                <span className="text-xs text-muted-foreground">Updated just now</span>
               </div>
-            </div>
-            {/* MRP Form */}
-            <div className="bg-muted/20 rounded-xl p-4 border border-border">
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><Tag className="w-4 h-4 text-primary" />{mrpEditId ? "Edit Sales MRP" : "Add / Update Sales MRP"}</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 items-end">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Brand No</label>
-                  <Popover open={brandNoComboOpen} onOpenChange={setBrandNoComboOpen}>
-                    <PopoverTrigger asChild>
-                      <button data-testid="select-mrp-brand-number" className="input-field flex items-center justify-between text-left" role="combobox">
-                        <span className={mrpBrandNumber ? "text-foreground" : "text-muted-foreground"}>{mrpBrandNumber || "-- Select --"}</span>
-                        <ChevronsUpDown className="w-4 h-4 shrink-0 opacity-50" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[200px] p-0" align="start">
-                      <Command>
-                        <CommandInput placeholder="Search brand no..." />
-                        <CommandList>
-                          <CommandEmpty>No brand found.</CommandEmpty>
-                          <CommandGroup>
-                            {uniqueBrandNumbers.map(bn => (
-                              <CommandItem key={bn} value={bn} onSelect={val => { handleMrpBrandNumberChange(val === mrpBrandNumber ? "" : val); setBrandNoComboOpen(false); }}>
-                                <Check className={cn("mr-2 h-4 w-4", mrpBrandNumber === bn ? "opacity-100" : "opacity-0")} />{bn}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Brand Name</label>
-                  <select className="input-field" value={mrpBrandName} onChange={e => handleMrpBrandNameChange(e.target.value)} disabled={!mrpBrandNumber} data-testid="select-mrp-brand-name">
-                    <option value="">-- Select --</option>{uniqueBrandNames.map(bn => <option key={bn}>{bn}</option>)}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Type</label>
-                  <select className="input-field" value={mrpProductType} onChange={e => handleMrpTypeChange(e.target.value)} disabled={!mrpBrandName} data-testid="select-mrp-product-type">
-                    <option value="">-- Select --</option>{uniqueTypes.map(t => <option key={t}>{t}</option>)}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Size</label>
-                  <select className="input-field" value={mrpSize} onChange={e => setMrpSize(e.target.value)} disabled={!mrpProductType} data-testid="select-mrp-size">
-                    <option value="">-- Select --</option>{uniqueSizes.map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-medium text-muted-foreground">Sales MRP (₹)</label>
-                  <input type="number" min="0" step="0.01" placeholder="e.g. 250" className="input-field text-right font-mono" value={mrpValue} onChange={e => setMrpValue(e.target.value === "" ? "" : parseFloat(e.target.value))} data-testid="input-mrp-value" />
-                </div>
-              </div>
-              <div className="flex gap-3 mt-4">
-                <Button onClick={handleSaveMrp} disabled={isSavingMrp} data-testid="button-save-sales-mrp">
-                  {isSavingMrp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                  {mrpEditId ? "Update MRP" : "Save MRP"}
-                </Button>
-                {mrpEditId && <Button variant="outline" onClick={() => { setMrpBrandNumber(""); setMrpBrandName(""); setMrpProductType(""); setMrpSize(""); setMrpValue(""); setMrpEditId(null); }}>Cancel Edit</Button>}
-              </div>
-            </div>
-            {/* MRP Table */}
-            <div className="border border-border rounded-xl overflow-hidden">
-              <div className="p-3 border-b border-border flex flex-wrap items-center gap-3">
-                <h3 className="font-semibold text-sm flex-1 flex items-center gap-2">
-                  <Tag className="w-4 h-4 text-muted-foreground" />Saved Sales MRP
-                  {salesMrpData && <span className="text-xs px-2 py-0.5 bg-primary/10 text-primary rounded-full">{salesMrpData.length}</span>}
-                </h3>
+              <div className="ml-auto flex items-center gap-2 flex-wrap">
+                {/* Search */}
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-                  <input type="text" placeholder="Search…" value={mrpSearch} onChange={e => setMrpSearch(e.target.value)} data-testid="input-mrp-search" className="pl-8 pr-8 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none w-48" />
-                  {mrpSearch && <button onClick={() => setMrpSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>}
+                  <input
+                    type="text"
+                    placeholder="Search brands…"
+                    value={mrpSearch}
+                    onChange={e => setMrpSearch(e.target.value)}
+                    data-testid="input-mrp-search"
+                    className="pl-8 pr-8 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-48"
+                  />
+                  {mrpSearch && (
+                    <button onClick={() => setMrpSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+                  )}
                 </div>
-              </div>
-              {isLoadingMrp ? (
-                <div className="flex items-center justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-              ) : salesMrpData && salesMrpData.filter(r => !mrpSearch.trim() || r.brandNumber.toLowerCase().includes(mrpSearch.toLowerCase()) || r.brandName.toLowerCase().includes(mrpSearch.toLowerCase())).length > 0 ? (
-                <div className="overflow-x-auto table-typography">
-                  <table className="w-full">
-                    <thead><tr className="bg-secondary/30"><th className="table-header w-8">SNo</th><th className="table-header w-20">Brand No</th><th className="table-header w-40">Brand Name</th><th className="table-header w-16 text-center">Type</th><th className="table-header w-20">Size</th><th className="table-header w-24 text-right text-primary bg-primary/5">Sales MRP (₹)</th><th className="table-header w-16 text-center">Action</th></tr></thead>
-                    <tbody>
-                      {salesMrpData.filter(r => !mrpSearch.trim() || r.brandNumber.toLowerCase().includes(mrpSearch.toLowerCase()) || r.brandName.toLowerCase().includes(mrpSearch.toLowerCase())).map((row, idx) => (
-                        <tr key={row.id} className={`hover:bg-muted/30 transition-colors ${mrpEditId === row.id ? "bg-primary/5" : ""}`} data-testid={`row-sales-mrp-${row.id}`}>
-                          <td className="table-cell text-center text-xs text-muted-foreground">{idx + 1}</td>
-                          <td className="table-cell font-mono text-xs text-muted-foreground">{row.brandNumber}</td>
-                          <td className="table-cell font-medium">{row.brandName}</td>
-                          <td className="table-cell text-center text-muted-foreground">{row.productType}</td>
-                          <td className="table-cell text-muted-foreground">{row.size}</td>
-                          <td className="table-cell text-right font-bold text-primary font-mono bg-primary/5">₹{row.salesMrp}</td>
-                          <td className="table-cell text-center">
-                            <div className="flex items-center justify-center gap-1">
-                              <button onClick={() => handleLoadMrpEdit(row)} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg" data-testid={`button-edit-mrp-${row.id}`} title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
-                              <button onClick={() => handleDeleteMrp(row.id)} disabled={isDeletingMrp} className="p-1.5 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-lg disabled:opacity-50" data-testid={`button-delete-mrp-${row.id}`} title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
-                            </div>
-                          </td>
-                        </tr>
+
+                {/* Filter */}
+                <Popover open={mrpFilterOpen} onOpenChange={v => { if (v) handleMrpOpenFilter(); else setMrpFilterOpen(false); }}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-mrp-filter">
+                      <Filter className="w-3.5 h-3.5" /> Filter
+                      {hasMrpActiveFilters && <span className="w-1.5 h-1.5 rounded-full bg-primary" />}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-4" align="end">
+                    <h3 className="font-semibold text-foreground mb-3">Filters</h3>
+                    <div className="mb-3">
+                      <label className="text-xs font-medium text-muted-foreground">Brand No</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 0019"
+                        className="mt-1 block w-full border border-border rounded-lg px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        value={mrpPendingBrandNo}
+                        onChange={e => setMrpPendingBrandNo(e.target.value)}
+                        data-testid="input-mrp-filter-brand-no"
+                      />
+                    </div>
+                    <div className="mb-4">
+                      <label className="text-xs font-medium text-muted-foreground">Brand Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Kingfisher"
+                        className="mt-1 block w-full border border-border rounded-lg px-3 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                        value={mrpPendingBrandName}
+                        onChange={e => setMrpPendingBrandName(e.target.value)}
+                        data-testid="input-mrp-filter-brand-name"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={handleMrpResetFilter} className="flex-1 py-1.5 text-sm border border-border rounded-lg hover:bg-muted transition-colors" data-testid="button-mrp-reset-filters">Reset</button>
+                      <button onClick={handleMrpApplyFilter} className="flex-1 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium" data-testid="button-mrp-apply-filters">Apply</button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Sort */}
+                <Popover open={mrpSortOpen} onOpenChange={setMrpSortOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-1.5" data-testid="button-mrp-sort">
+                      <ArrowUpDown className="w-3.5 h-3.5" /> Sort
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-3" align="end">
+                    <div className="space-y-3">
+                      {([
+                        { field: 'brandNumber' as const, label: 'BRAND NO' },
+                        { field: 'brandName' as const, label: 'BRAND NAME' },
+                        { field: 'productType' as const, label: 'TYPE' },
+                        { field: 'size' as const, label: 'SIZE' },
+                        { field: 'salesMrp' as const, label: 'MRP (₹)' },
+                      ]).map(({ field, label }) => (
+                        <div key={field}>
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 px-1">{label}</p>
+                          <button
+                            onClick={() => handleMrpSetSort(field, 'asc')}
+                            className={cn("flex items-center gap-2 w-full px-3 py-1.5 text-sm rounded-md transition-colors", mrpSortField === field && mrpSortDir === 'asc' ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted text-foreground")}
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" /> Ascending
+                            {mrpSortField === field && mrpSortDir === 'asc' && <Check className="w-3.5 h-3.5 ml-auto" />}
+                          </button>
+                          <button
+                            onClick={() => handleMrpSetSort(field, 'desc')}
+                            className={cn("flex items-center gap-2 w-full px-3 py-1.5 text-sm rounded-md transition-colors", mrpSortField === field && mrpSortDir === 'desc' ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted text-foreground")}
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" /> Descending
+                            {mrpSortField === field && mrpSortDir === 'desc' && <Check className="w-3.5 h-3.5 ml-auto" />}
+                          </button>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+
+                {/* Import + dropdown */}
+                <div className="flex items-stretch">
+                  <Button
+                    size="sm"
+                    className="rounded-r-none gap-1.5 border-r-0"
+                    onClick={() => mrpFileInputRef.current?.click()}
+                    disabled={isMrpUploading}
+                    data-testid="button-mrp-import"
+                  >
+                    {isMrpUploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
+                    Import
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" className="rounded-l-none px-2" data-testid="button-mrp-import-dropdown">
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => mrpFileInputRef.current?.click()} data-testid="menu-mrp-import-excel">
+                        <FileSpreadsheet className="w-4 h-4 mr-2" /> Import from Excel / CSV
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem disabled data-testid="menu-mrp-download-template">
+                        <Download className="w-4 h-4 mr-2" /> Download sample template
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-8 text-muted-foreground"><Tag className="w-8 h-8 mb-2 opacity-30" /><p className="text-sm">{mrpSearch ? `No records match "${mrpSearch}"` : "No Sales MRP records yet."}</p></div>
-              )}
+
+                {/* Add Entry */}
+                <Button
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => { setMrpEditId(null); setMrpBrandNumber(""); setMrpBrandName(""); setMrpProductType(""); setMrpSize(""); setMrpValue(""); setShowMrpFormDialog(true); }}
+                  data-testid="button-mrp-add-entry"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add Entry
+                </Button>
+              </div>
             </div>
-          </div>
+
+            {/* MRP upload pending file bar */}
+            {mrpUploadFile && (
+              <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs">
+                <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                <span className="flex-1 truncate font-medium">{mrpUploadFile.name}</span>
+                <Button onClick={handleMrpBulkUpload} disabled={isMrpUploading} size="sm" data-testid="button-mrp-upload-import">
+                  {isMrpUploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                  {isMrpUploading ? "Importing…" : "Import & Save"}
+                </Button>
+                <button onClick={() => { setMrpUploadFile(null); if (mrpFileInputRef.current) mrpFileInputRef.current.value = ""; }} className="p-1 text-amber-600 hover:text-destructive"><X className="w-4 h-4" /></button>
+              </div>
+            )}
+
+            {/* MRP Table / Empty state */}
+            {isLoadingMrp ? (
+              <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+            ) : displayMrpRecords.length > 0 ? (
+              <div className="overflow-x-auto table-typography">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40">
+                      <th className="w-10 px-3 py-2.5">
+                        <Checkbox disabled data-testid="checkbox-mrp-select-all" />
+                      </th>
+                      <th className="table-header w-10 text-center uppercase text-[10px] tracking-wider">#</th>
+                      <th className="table-header w-24 uppercase text-[10px] tracking-wider">
+                        <button onClick={() => handleMrpSetSort('brandNumber', mrpSortField === 'brandNumber' && mrpSortDir === 'asc' ? 'desc' : 'asc')} className="flex items-center gap-1 hover:text-foreground">
+                          BRAND {mrpSortField === 'brandNumber' ? (mrpSortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+                        </button>
+                      </th>
+                      <th className="table-header uppercase text-[10px] tracking-wider">
+                        <button onClick={() => handleMrpSetSort('brandName', mrpSortField === 'brandName' && mrpSortDir === 'asc' ? 'desc' : 'asc')} className="flex items-center gap-1 hover:text-foreground">
+                          NAME {mrpSortField === 'brandName' ? (mrpSortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+                        </button>
+                      </th>
+                      <th className="table-header w-20 uppercase text-[10px] tracking-wider">
+                        <button onClick={() => handleMrpSetSort('productType', mrpSortField === 'productType' && mrpSortDir === 'asc' ? 'desc' : 'asc')} className="flex items-center gap-1 hover:text-foreground">
+                          TYPE {mrpSortField === 'productType' ? (mrpSortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+                        </button>
+                      </th>
+                      <th className="table-header w-28 uppercase text-[10px] tracking-wider">
+                        <button onClick={() => handleMrpSetSort('size', mrpSortField === 'size' && mrpSortDir === 'asc' ? 'desc' : 'asc')} className="flex items-center gap-1 hover:text-foreground">
+                          SIZE {mrpSortField === 'size' ? (mrpSortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+                        </button>
+                      </th>
+                      <th className="table-header w-28 text-right uppercase text-[10px] tracking-wider text-primary bg-primary/5">
+                        <button onClick={() => handleMrpSetSort('salesMrp', mrpSortField === 'salesMrp' && mrpSortDir === 'asc' ? 'desc' : 'asc')} className="flex items-center gap-1 ml-auto hover:text-primary/80">
+                          MRP (₹) {mrpSortField === 'salesMrp' ? (mrpSortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
+                        </button>
+                      </th>
+                      <th className="table-header w-16 text-center uppercase text-[10px] tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayMrpRecords.map((row, idx) => (
+                      <tr key={row.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors" data-testid={`row-sales-mrp-${row.id}`}>
+                        <td className="px-3 py-2.5">
+                          <Checkbox disabled data-testid={`checkbox-mrp-row-${row.id}`} />
+                        </td>
+                        <td className="table-cell text-center text-xs text-muted-foreground">{idx + 1}</td>
+                        <td className="table-cell font-mono text-xs text-muted-foreground">{row.brandNumber}</td>
+                        <td className="table-cell font-medium">{row.brandName}</td>
+                        <td className="table-cell text-muted-foreground">{row.productType}</td>
+                        <td className="table-cell text-muted-foreground text-xs">{row.size}</td>
+                        <td className="table-cell text-right font-bold text-primary font-mono bg-primary/5">₹{row.salesMrp}</td>
+                        <td className="table-cell text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button onClick={() => handleLoadMrpEdit(row)} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg" data-testid={`button-edit-mrp-${row.id}`} title="Edit"><Pencil className="w-3.5 h-3.5" /></button>
+                            <button onClick={() => handleDeleteMrp(row.id)} disabled={isDeletingMrp} className="p-1.5 text-destructive/60 hover:text-destructive hover:bg-destructive/10 rounded-lg disabled:opacity-50" data-testid={`button-delete-mrp-${row.id}`} title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              /* MRP Empty State */
+              <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
+                <div className="w-14 h-14 rounded-full bg-muted/60 flex items-center justify-center mb-4">
+                  <Tag className="w-7 h-7 text-muted-foreground/50" />
+                </div>
+                <h3 className="font-semibold text-foreground mb-1">No MRP records yet</h3>
+                <p className="text-sm text-muted-foreground max-w-sm mb-6">
+                  Import an Excel of brand-wise state-fixed MRPs, or add one manually.
+                </p>
+                <div className="flex gap-3">
+                  <Button onClick={() => mrpFileInputRef.current?.click()} className="gap-2" data-testid="button-mrp-empty-import">
+                    <UploadCloud className="w-4 h-4" /> Import MRP file
+                  </Button>
+                  <Button variant="outline" onClick={() => { setMrpEditId(null); setMrpBrandNumber(""); setMrpBrandName(""); setMrpProductType(""); setMrpSize(""); setMrpValue(""); setShowMrpFormDialog(true); }} className="gap-2" data-testid="button-mrp-empty-add">
+                    <Plus className="w-4 h-4" /> Add manually
+                  </Button>
+                </div>
+                {(mrpSearch || hasMrpActiveFilters) && (
+                  <button onClick={() => { setMrpSearch(""); setMrpFilterBrandNo(""); setMrpFilterBrandName(""); }} className="mt-4 text-xs text-muted-foreground hover:text-foreground underline">
+                    Clear search & filters
+                  </button>
+                )}
+              </div>
+            )}
+          </>
         )}
+
+        {/* MRP Add/Edit Dialog */}
+        <Dialog open={showMrpFormDialog} onOpenChange={open => { if (!open) { setMrpEditId(null); setMrpBrandNumber(""); setMrpBrandName(""); setMrpProductType(""); setMrpSize(""); setMrpValue(""); } setShowMrpFormDialog(open); }}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Tag className="w-4 h-4 text-primary" />
+                {mrpEditId ? "Edit Sales MRP" : "Add Sales MRP"}
+              </DialogTitle>
+              <DialogDescription>
+                {mrpEditId ? "Update the MRP for this brand entry." : "Add a new brand-wise state-fixed MRP."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-2">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Brand No</label>
+                <Popover open={brandNoComboOpen} onOpenChange={setBrandNoComboOpen}>
+                  <PopoverTrigger asChild>
+                    <button data-testid="select-mrp-brand-number" className="input-field flex items-center justify-between text-left" role="combobox">
+                      <span className={mrpBrandNumber ? "text-foreground" : "text-muted-foreground"}>{mrpBrandNumber || "-- Select --"}</span>
+                      <ChevronsUpDown className="w-4 h-4 shrink-0 opacity-50" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[200px] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Search brand no..." />
+                      <CommandList>
+                        <CommandEmpty>No brand found.</CommandEmpty>
+                        <CommandGroup>
+                          {uniqueBrandNumbers.map(bn => (
+                            <CommandItem key={bn} value={bn} onSelect={val => { handleMrpBrandNumberChange(val === mrpBrandNumber ? "" : val); setBrandNoComboOpen(false); }}>
+                              <Check className={cn("mr-2 h-4 w-4", mrpBrandNumber === bn ? "opacity-100" : "opacity-0")} />{bn}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Brand Name</label>
+                <select className="input-field" value={mrpBrandName} onChange={e => handleMrpBrandNameChange(e.target.value)} disabled={!mrpBrandNumber} data-testid="select-mrp-brand-name">
+                  <option value="">-- Select --</option>{uniqueBrandNames.map(bn => <option key={bn}>{bn}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Type</label>
+                <select className="input-field" value={mrpProductType} onChange={e => handleMrpTypeChange(e.target.value)} disabled={!mrpBrandName} data-testid="select-mrp-product-type">
+                  <option value="">-- Select --</option>{uniqueTypes.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Size</label>
+                <select className="input-field" value={mrpSize} onChange={e => setMrpSize(e.target.value)} disabled={!mrpProductType} data-testid="select-mrp-size">
+                  <option value="">-- Select --</option>{uniqueSizes.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="flex flex-col gap-1.5 sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground">Sales MRP (₹)</label>
+                <input type="number" min="0" step="0.01" placeholder="e.g. 250" className="input-field text-right font-mono" value={mrpValue} onChange={e => setMrpValue(e.target.value === "" ? "" : parseFloat(e.target.value))} data-testid="input-mrp-value" />
+              </div>
+            </div>
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setShowMrpFormDialog(false)}>Cancel</Button>
+              <Button onClick={handleSaveMrp} disabled={isSavingMrp} data-testid="button-save-sales-mrp">
+                {isSavingMrp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                {mrpEditId ? "Update MRP" : "Save MRP"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* ======= SALES RECORDS TAB CONTENT ======= */}
         {activeView === 'import-sales' && (
