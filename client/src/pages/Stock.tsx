@@ -38,13 +38,13 @@ export default function Stock() {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const isToday = stockViewDate === getTodayLocal();
 
-  // Latest invoice date from orders — caps the calendar so future dates are disabled
-  const { data: latestOrderDateData } = useQuery<{ invoiceDate: string | null }>({
-    queryKey: ["/api/orders/latest-invoice-date"],
+  // Earliest invoice date from orders — used as calendar floor (oldest selectable date)
+  const { data: earliestOrderDateData } = useQuery<{ invoiceDate: string | null }>({
+    queryKey: ["/api/orders/earliest-invoice-date"],
   });
-  const latestOrderDate = latestOrderDateData?.invoiceDate
-    ? parse(latestOrderDateData.invoiceDate, "yyyy-MM-dd", new Date())
-    : new Date();
+  const earliestOrderDate = earliestOrderDateData?.invoiceDate
+    ? parse(earliestOrderDateData.invoiceDate, "yyyy-MM-dd", new Date())
+    : new Date("2020-01-01");
 
   // Current stock (editable, always today's live data)
   const { data: stock, isLoading } = useQuery<StockDetail[]>({
@@ -159,12 +159,10 @@ export default function Stock() {
                       setCurrentPage(1);
                     }
                   }}
-                  fromDate={latestOrderDate}
+                  fromDate={earliestOrderDate}
                   toDate={new Date()}
                   disabled={(date) => {
-                    const floor = new Date(latestOrderDate);
-                    floor.setHours(0, 0, 0, 0);
-                    if (date < floor) return true;
+                    // Disable only future dates — all past dates with snapshots are valid
                     const today = new Date();
                     today.setHours(23, 59, 59, 999);
                     return date > today;
