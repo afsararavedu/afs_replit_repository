@@ -617,6 +617,50 @@ export default function Inventory() {
       {/* Hidden file input */}
       <input ref={fileInputRef} type="file" accept=".csv,.xls,.xlsx,.pdf" onChange={handleFileChange} className="hidden" />
 
+      {/* ===================== PAGE HEADING ===================== */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <Package className="w-6 h-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-foreground">Inventory</h1>
+            <p className="text-sm text-muted-foreground">Manage invoices, MRP, and sales records</p>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex items-center gap-1 border-b border-border pb-0">
+          <button
+            onClick={() => setActiveView('invoices')}
+            data-testid="tab-invoices"
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeView === 'invoices' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'}`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            Invoices
+            <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${activeView === 'invoices' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{allOrders?.length ?? 0}</span>
+          </button>
+          <button
+            onClick={() => setActiveView('mrp')}
+            data-testid="tab-update-sales-mrp"
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeView === 'mrp' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'}`}
+          >
+            <Tag className="w-3.5 h-3.5" />
+            Sales MRP
+          </button>
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => setActiveView('import-sales')}
+              data-testid="tab-import-sales-data"
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeView === 'import-sales' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'}`}
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              Import Sales Data
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* ===================== STATS CARDS ===================== */}
       <div className="grid grid-cols-4 gap-3">
         <div className="bg-card border border-border rounded-xl p-4 flex items-start justify-between shadow-sm">
@@ -655,37 +699,6 @@ export default function Inventory() {
 
         {/* TOOLBAR */}
         <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-wrap">
-          {/* Tabs */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setActiveView('invoices')}
-              data-testid="tab-invoices"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeView === 'invoices' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-            >
-              <FileText className="w-3.5 h-3.5" />
-              Invoices
-              <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${activeView === 'invoices' ? 'bg-white/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>{allOrders?.length ?? 0}</span>
-            </button>
-            <button
-              onClick={() => setActiveView('mrp')}
-              data-testid="tab-update-sales-mrp"
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeView === 'mrp' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-            >
-              <Tag className="w-3.5 h-3.5" />
-              Update Sales MRP
-            </button>
-            {user?.role === 'admin' && (
-              <button
-                onClick={() => setActiveView('import-sales')}
-                data-testid="tab-import-sales-data"
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeView === 'import-sales' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted'}`}
-              >
-                <FileSpreadsheet className="w-3.5 h-3.5" />
-                Import Sales Data
-              </button>
-            )}
-          </div>
-
           {activeView === 'invoices' && (
           <div className="ml-auto flex items-center gap-2 flex-wrap">
             {/* Search */}
