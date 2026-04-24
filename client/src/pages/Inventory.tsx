@@ -821,6 +821,7 @@ export default function Inventory() {
           >
             <BarChart2 className="w-3.5 h-3.5" />
             Sales Records
+            <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${activeView === 'import-sales' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{allSalesData?.length ?? 0}</span>
           </button>
         </div>
       </div>
