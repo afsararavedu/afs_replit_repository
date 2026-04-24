@@ -775,6 +775,7 @@ export default function Inventory() {
           >
             <Tag className="w-3.5 h-3.5" />
             Sales MRP
+            <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${activeView === 'mrp' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{salesMrpData?.length ?? 0}</span>
           </button>
           <button
             onClick={() => setActiveView('import-sales')}
