@@ -43,7 +43,7 @@ function Router() {
         {user && !user.mustResetPassword && (
           <Header onMenuClick={() => setDrawerOpen(true)} />
         )}
-        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-x-hidden">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 overflow-x-auto">
           <div className="max-w-[1600px] mx-auto">
             <Switch>
               <Route path="/auth" component={AuthPage} />

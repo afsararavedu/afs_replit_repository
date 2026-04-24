@@ -1017,7 +1017,7 @@ export default function Sales() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full sm:w-auto">
+          <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap justify-end">
             <div className="flex items-center gap-2">
               <Popover open={exportDatePickerOpen} onOpenChange={setExportDatePickerOpen}>
                 <PopoverTrigger asChild>
