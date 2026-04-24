@@ -85,6 +85,7 @@ const PACK_SIZES = [
   "96 / 90 ml",
   "9 / 1000 ml",
   "24 / 375 ml",
+  "24 / 275 ml",
 ];
 
 const EMPTY_ROW: InsertOrder = {
