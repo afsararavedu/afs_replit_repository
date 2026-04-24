@@ -1398,7 +1398,10 @@ export default function Inventory() {
                         <FileSpreadsheet className="w-4 h-4 mr-2" /> Import from Excel / CSV
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem disabled data-testid="menu-mrp-download-template">
+                      <DropdownMenuItem
+                        onClick={() => { window.location.href = "/api/mrp-template/download"; }}
+                        data-testid="menu-mrp-download-template"
+                      >
                         <Download className="w-4 h-4 mr-2" /> Download sample template
                       </DropdownMenuItem>
                     </DropdownMenuContent>

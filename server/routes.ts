@@ -1573,6 +1573,18 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/mrp-template/download", (_req, res) => {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["brand_number", "brand_name", "size", "sales_mrp", "product_type"],
+    ]);
+    XLSX.utils.book_append_sheet(wb, ws, "MRP Template");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Disposition", "attachment; filename=MRP_Import_Template.xlsx");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.send(buf);
+  });
+
   app.get("/api/template/download", (req, res) => {
     const format = (req.query.format as string) || "pdf";
 
