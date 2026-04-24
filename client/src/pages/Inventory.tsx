@@ -118,6 +118,17 @@ function parseDateStr(s: string | null | undefined): Date | null {
   return isValid(d) ? d : null;
 }
 
+/** Convert YYYY-MM-DD (HTML date input) → DD-Mon-YYYY (PDF-parsed format, e.g. 05-Feb-2026) */
+function toInvoiceDateFormat(val: string | null | undefined): string {
+  if (!val) return val ?? "";
+  // Already in DD-Mon-YYYY format — leave untouched
+  if (/^\d{1,2}-[A-Za-z]{3}-\d{4}$/.test(val)) return val;
+  // Convert from YYYY-MM-DD
+  const d = parse(val, "yyyy-MM-dd", new Date());
+  if (!isValid(d)) return val;
+  return format(d, "dd-MMM-yyyy");
+}
+
 function SortOption({ field, dir, label, activeSortField, activeSortDir, onSort }: {
   field: SortField; dir: SortDir; label: string;
   activeSortField: SortField; activeSortDir: SortDir;
@@ -178,7 +189,6 @@ export default function Inventory() {
   const [filterIcdcNumber, setFilterIcdcNumber] = useState("");
   const [filterBrandNumber, setFilterBrandNumber] = useState("");
   const [quickRange, setQuickRange] = useState<string>("");
-  const [selectedRowIds, setSelectedRowIds] = useState<Set<number>>(new Set());
   const [savedPage, setSavedPage] = useState(1);
   const [savedPageSize, setSavedPageSize] = useState(25);
 
@@ -691,7 +701,8 @@ export default function Inventory() {
   const handleRejectUpload = () => { setShowPreview(false); setPreviewOrders([]); toast({ title: "Cancelled", className: "bg-muted text-foreground" }); };
   const handleSubmitOrders = () => {
     if (rows.some(r => !r.brandName || !r.brandNumber)) { toast({ title: "Validation Error", description: "Fill in Brand Number and Name for all rows.", variant: "destructive" }); return; }
-    saveOrders(rows, {
+    const normalizedRows = rows.map(r => ({ ...r, invoiceDate: toInvoiceDateFormat(r.invoiceDate) }));
+    saveOrders(normalizedRows, {
       onSuccess: () => {
         toast({ title: "Success", description: "Orders saved!", className: "bg-green-50 text-green-800" });
         setRows([{ ...EMPTY_ROW }]); setShowManualEntryDialog(false);
@@ -761,16 +772,6 @@ export default function Inventory() {
     } catch (err: any) { toast({ title: "Import Failed", description: err.message, variant: "destructive" }); }
     finally { setIsMrpUploading(false); }
   };
-
-  // Checkbox helpers
-  const visibleIds = displayOrders.slice((savedPage - 1) * savedPageSize, savedPage * savedPageSize).map(o => o.id);
-  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedRowIds.has(id));
-  const someVisibleSelected = visibleIds.some(id => selectedRowIds.has(id)) && !allVisibleSelected;
-  const toggleSelectAll = () => {
-    if (allVisibleSelected) setSelectedRowIds(prev => { const next = new Set(prev); visibleIds.forEach(id => next.delete(id)); return next; });
-    else setSelectedRowIds(prev => { const next = new Set(prev); visibleIds.forEach(id => next.add(id)); return next; });
-  };
-  const toggleRow = (id: number) => setSelectedRowIds(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
   const paginatedDisplay = displayOrders.slice((savedPage - 1) * savedPageSize, savedPage * savedPageSize);
 
@@ -1127,14 +1128,6 @@ export default function Inventory() {
               <table className="w-full min-w-[900px]">
                 <thead>
                   <tr className="border-b border-border bg-muted/40">
-                    <th className="w-10 px-3 py-2.5">
-                      <Checkbox
-                        checked={allVisibleSelected}
-                        onCheckedChange={toggleSelectAll}
-                        data-testid="checkbox-select-all"
-                        className={someVisibleSelected ? "data-[state=unchecked]:bg-muted" : ""}
-                      />
-                    </th>
                     <th className="table-header w-10 text-center">#</th>
                     <th className="table-header w-28 uppercase text-[10px] tracking-wider">
                       <button onClick={() => handleSetSort("invoiceDate", sortField === "invoiceDate" && sortDir === "asc" ? "desc" : "asc")} className="flex items-center gap-1 hover:text-foreground">
@@ -1175,16 +1168,12 @@ export default function Inventory() {
                     const isEditing = editingOrderId === order.id;
                     const isDirty = dirtyOrderMap.has(order.id);
                     const isDeleteConfirm = deleteConfirmOrderId === order.id;
-                    const isSelected = selectedRowIds.has(order.id);
                     return (
                       <tr
                         key={order.id}
-                        className={cn("border-b border-border/50 transition-colors", isEditing ? "bg-amber-50/60 dark:bg-amber-900/10" : isDirty ? "bg-blue-50/40 dark:bg-blue-900/10" : isSelected ? "bg-primary/5" : "hover:bg-muted/30")}
+                        className={cn("border-b border-border/50 transition-colors", isEditing ? "bg-amber-50/60 dark:bg-amber-900/10" : isDirty ? "bg-blue-50/40 dark:bg-blue-900/10" : "hover:bg-muted/30")}
                         data-testid={`row-saved-order-${globalIdx}`}
                       >
-                        <td className="px-3 py-2.5">
-                          <Checkbox checked={isSelected} onCheckedChange={() => toggleRow(order.id)} data-testid={`checkbox-row-${order.id}`} />
-                        </td>
                         <td className="table-cell text-muted-foreground text-center text-xs">{globalIdx + 1}</td>
                         <td className="table-cell text-sm">
                           {isEditing ? <input className="input-field w-24 text-xs" value={editOrderData.invoiceDate ?? ""} onChange={e => handleOrderEditField("invoiceDate", e.target.value)} /> : (order.invoiceDate || "-")}
