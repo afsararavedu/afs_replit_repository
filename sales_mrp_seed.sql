@@ -1,4 +1,4 @@
--- ============================================================
+1-- ============================================================
 -- sales_mrp_details — INSERT script (182 records)
 -- Exported from production on 2026-04-25
 -- Usage: Run in your PostgreSQL client to seed the table.
