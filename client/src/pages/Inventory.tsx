@@ -558,7 +558,7 @@ export default function Inventory() {
       if (e.key === "/" && !isInput) { e.preventDefault(); searchInputRef.current?.focus(); }
       if (e.key === "n" && !isInput) { e.preventDefault(); if (user?.role === "admin") setShowManualEntryDialog(true); }
       if (e.key === "r" && !isInput) { e.preventDefault(); refetchOrders(); }
-      if (e.key === "Escape") { setSelectedRowIds(new Set()); setEditingOrderId(null); setEditOrderData({}); }
+      if (e.key === "Escape") { setEditingOrderId(null); setEditOrderData({}); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -1656,7 +1656,7 @@ export default function Inventory() {
                         <CommandEmpty>No brand found.</CommandEmpty>
                         <CommandGroup>
                           {uniqueBrandNumbers.map(bn => (
-                            <CommandItem key={bn} value={bn} onSelect={val => { handleMrpBrandNumberChange(val === mrpBrandNumber ? "" : val); setBrandNoComboOpen(false); }}>
+                            <CommandItem key={bn} value={bn} onSelect={val => { const original = uniqueBrandNumbers.find(n => n.toLowerCase() === val.toLowerCase()) ?? val; handleMrpBrandNumberChange(original === mrpBrandNumber ? "" : original); setBrandNoComboOpen(false); }}>
                               <Check className={cn("mr-2 h-4 w-4", mrpBrandNumber === bn ? "opacity-100" : "opacity-0")} />{bn}
                             </CommandItem>
                           ))}
