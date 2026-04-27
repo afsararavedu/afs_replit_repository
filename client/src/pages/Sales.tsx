@@ -1209,7 +1209,7 @@ export default function Sales() {
                   return (
                     <tr
                       key={item.id}
-                      className={`hover:bg-muted/30 transition-colors group ${isSubmitted ? "opacity-90" : ""}`}
+                      className={`transition-colors group ${idx % 2 === 1 ? "bg-muted/10" : "bg-white"} hover:bg-primary/5 ${isSubmitted ? "opacity-90" : ""}`}
                     >
                       <td className="table-cell font-mono text-xs text-muted-foreground border-r border-border">
                         {globalIdx + 1}
