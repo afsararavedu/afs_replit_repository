@@ -1152,14 +1152,14 @@ export default function Sales() {
           <table className="w-full">
             <thead className="sticky top-0 z-10 bg-secondary shadow-sm">
               <tr className="bg-secondary border-b-2 border-border">
-                <th className="table-header w-8 border-r border-border">SNo</th>
-                <th className="table-header w-14 border-r border-border">
+                <th className="table-header w-8 border-r border-border sticky left-0 z-20 bg-secondary">SNo</th>
+                <th className="table-header w-14 border-r border-border sticky left-8 z-20 bg-secondary">
                   <button onClick={() => handleSalesSortToggle('brandNumber')} className="flex items-center gap-1 hover:text-foreground w-full">
                     Brand No {salesSortField === 'brandNumber' ? (salesSortDir === 'asc' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />) : <ArrowUpDown className="w-3 h-3 opacity-40" />}
                   </button>
                 </th>
-                <th className="table-header w-24 border-r border-border">Brand Name</th>
-                <th className="table-header w-12 border-r border-border">Size</th>
+                <th className="table-header w-24 border-r border-border sticky left-[88px] z-20 bg-secondary">Brand Name</th>
+                <th className="table-header w-12 border-r border-border sticky left-[184px] z-20 bg-secondary shadow-[2px_0_6px_rgba(0,0,0,0.08)]">Size</th>
                 <th className="table-header w-10 border-r border-border">Qty/Cs</th>
                 <th className="table-header w-14 border-r border-border">Op. Bal (Btls)</th>
                 <th className="table-header w-16 text-right bg-green-50/50 border-r border-border">New Stk (Cs)</th>
@@ -1211,14 +1211,14 @@ export default function Sales() {
                       key={item.id}
                       className={`transition-colors group ${idx % 2 === 1 ? "bg-muted/10" : "bg-white"} hover:bg-primary/5 ${isSubmitted ? "opacity-90" : ""}`}
                     >
-                      <td className="table-cell font-mono text-xs text-muted-foreground border-r border-border">
+                      <td className={`table-cell font-mono text-xs text-muted-foreground border-r border-border sticky left-0 z-10 ${idx % 2 === 1 ? "bg-gray-50" : "bg-white"}`}>
                         {globalIdx + 1}
                       </td>
-                      <td className="table-cell font-mono text-xs text-muted-foreground border-r border-border">
+                      <td className={`table-cell font-mono text-xs text-muted-foreground border-r border-border sticky left-8 z-10 ${idx % 2 === 1 ? "bg-gray-50" : "bg-white"}`}>
                         {item.brandNumber}
                       </td>
-                      <td className="table-cell font-medium border-r border-border">{item.brandName}</td>
-                      <td className="table-cell text-muted-foreground border-r border-border">
+                      <td className={`table-cell font-medium border-r border-border sticky left-[88px] z-10 ${idx % 2 === 1 ? "bg-gray-50" : "bg-white"}`}>{item.brandName}</td>
+                      <td className={`table-cell text-muted-foreground border-r border-border sticky left-[184px] z-10 shadow-[2px_0_6px_rgba(0,0,0,0.06)] ${idx % 2 === 1 ? "bg-gray-50" : "bg-white"}`}>
                         {item.size}
                       </td>
                       <td className="table-cell text-muted-foreground border-r border-border">
