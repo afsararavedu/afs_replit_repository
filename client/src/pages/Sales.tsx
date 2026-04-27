@@ -1148,10 +1148,10 @@ export default function Sales() {
         </div>
 
         {/* Table */}
-        <div className="overflow-x-auto table-typography">
+        <div className="overflow-auto max-h-[calc(100vh-240px)] table-typography rounded-b-lg border border-border">
           <table className="w-full">
-            <thead>
-              <tr className="bg-secondary/30">
+            <thead className="sticky top-0 z-10 bg-secondary shadow-sm">
+              <tr className="bg-secondary border-b-2 border-border">
                 <th className="table-header w-8 border-r border-border">SNo</th>
                 <th className="table-header w-14 border-r border-border">
                   <button onClick={() => handleSalesSortToggle('brandNumber')} className="flex items-center gap-1 hover:text-foreground w-full">
