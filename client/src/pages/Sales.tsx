@@ -1149,7 +1149,7 @@ export default function Sales() {
         </div>
 
         {/* Table */}
-        <div className="overflow-auto max-h-[calc(100vh-240px)] table-typography rounded-b-lg border border-border">
+        <div className="overflow-auto max-h-[calc(100dvh-220px)] table-typography rounded-b-lg border border-border">
           <table className="w-full">
             <thead className="sticky top-0 z-10 bg-secondary shadow-sm">
               <tr className="bg-secondary border-b-2 border-border">

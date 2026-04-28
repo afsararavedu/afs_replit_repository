@@ -56,7 +56,7 @@ export function Sidebar({ drawerOpen = false, onDrawerClose }: SidebarProps) {
         {onDrawerClose && (
           <button
             onClick={onDrawerClose}
-            className="lg:hidden p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground flex-shrink-0"
+            className="md:hidden p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground flex-shrink-0"
             aria-label="Close menu"
           >
             <X className="w-5 h-5" />
@@ -110,19 +110,19 @@ export function Sidebar({ drawerOpen = false, onDrawerClose }: SidebarProps) {
 
   return (
     <>
-      {/* ── Desktop sidebar (lg+): always visible, fixed on left ── */}
-      <div className="hidden lg:flex flex-col w-64 h-screen bg-card border-r border-border fixed left-0 top-0 z-50 shadow-xl shadow-black/5 select-none">
+      {/* ── Sidebar: always visible on md+ (tablet portrait, landscape, desktop) ── */}
+      <div className="hidden md:flex flex-col w-64 h-screen bg-card border-r border-border fixed left-0 top-0 z-50 shadow-xl shadow-black/5 select-none">
         {navContent}
       </div>
 
-      {/* ── Tablet drawer (< lg): slide-in overlay ── */}
+      {/* ── Mobile drawer (< md): slide-in overlay ── */}
       {drawerOpen && (
         <>
           <div
-            className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+            className="fixed inset-0 bg-black/40 z-40 md:hidden"
             onClick={onDrawerClose}
           />
-          <div className="fixed left-0 top-0 h-screen w-72 bg-card border-r border-border z-50 shadow-2xl flex flex-col lg:hidden animate-in slide-in-from-left duration-200 select-none">
+          <div className="fixed left-0 top-0 h-screen w-72 bg-card border-r border-border z-50 shadow-2xl flex flex-col md:hidden animate-in slide-in-from-left duration-200 select-none">
             {navContent}
           </div>
         </>

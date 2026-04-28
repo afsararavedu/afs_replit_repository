@@ -39,7 +39,7 @@ function Router() {
       {user && !user.mustResetPassword && (
         <Sidebar drawerOpen={drawerOpen} onDrawerClose={() => setDrawerOpen(false)} />
       )}
-      <div className={`flex-1 ${user && !user.mustResetPassword ? 'lg:pl-64' : ''} flex flex-col min-h-screen transition-all`}>
+      <div className={`flex-1 ${user && !user.mustResetPassword ? 'md:pl-64' : ''} flex flex-col min-h-screen transition-all`}>
         {user && !user.mustResetPassword && (
           <Header onMenuClick={() => setDrawerOpen(true)} />
         )}

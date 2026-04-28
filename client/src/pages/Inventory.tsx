@@ -919,7 +919,7 @@ export default function Inventory() {
 
       {/* ===================== STATS CARDS ===================== */}
       {activeView === 'invoices' ? (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-card border border-border rounded-xl p-4 flex items-start justify-between shadow-sm">
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">ICDC Invoices</p>
@@ -1026,7 +1026,7 @@ export default function Inventory() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="bg-card border border-border rounded-xl p-4 flex items-start justify-between shadow-sm">
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Total Revenue</p>

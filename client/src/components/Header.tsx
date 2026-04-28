@@ -20,7 +20,7 @@ export function Header({ onMenuClick }: HeaderProps) {
         {/* Hamburger menu — only visible on tablet (hidden on lg+) */}
         <button
           onClick={onMenuClick}
-          className="lg:hidden p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
+          className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground"
           aria-label="Open navigation menu"
           data-testid="button-hamburger-menu"
         >

@@ -210,6 +210,22 @@
   h4 { font-size: 1.0625rem; }
 }
 
+/* Touch / Tablet improvements */
+button, a, [role="button"], [role="tab"], select, input, textarea {
+  touch-action: manipulation; /* prevents 300ms tap delay on iOS/iPadOS */
+}
+
+/* Ensure table inputs are tall enough for touch on tablet */
+@media (pointer: coarse) {
+  .table-cell input,
+  .table-cell select,
+  .input-field {
+    min-height: 2.5rem;
+  }
+  /* Slightly wider scrollbar on touch screens */
+  ::-webkit-scrollbar { width: 0.375rem; height: 0.375rem; }
+}
+
 /* Custom Scrollbar */
 ::-webkit-scrollbar {
   width: 0.5rem;
