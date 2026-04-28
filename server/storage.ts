@@ -57,6 +57,7 @@ export interface IStorage {
   
   // Orders
   getOrders(): Promise<Order[]>;
+  getBrandTypes(): Promise<{ brandNumber: string; productType: string }[]>;
   bulkCreateOrders(orders: InsertOrder[]): Promise<Order[]>;
   updateOrder(id: number, data: Record<string, any>): Promise<Order>;
   deleteOrder(id: number): Promise<void>;
@@ -382,7 +383,19 @@ export class DatabaseStorage implements IStorage {
     return _setCache('orders', result, 60_000); // 60s TTL
   }
 
+  async getBrandTypes(): Promise<{ brandNumber: string; productType: string }[]> {
+    const cached = _getCache<{ brandNumber: string; productType: string }[]>('brandTypes');
+    if (cached) return cached;
+    const rows = await db
+      .selectDistinct({ brandNumber: orders.brandNumber, productType: orders.productType })
+      .from(orders)
+      .where(sql`${orders.brandNumber} IS NOT NULL AND ${orders.brandNumber} != '' AND ${orders.productType} IS NOT NULL AND ${orders.productType} != ''`);
+    return _setCache('brandTypes', rows, 300_000); // 5 minute TTL
+  }
+
   async getLatestOrderInvoiceDate(): Promise<string | null> {
+    const cached = _getCache<string | null>('latestInvoiceDate');
+    if (cached !== undefined) return cached;
     // normalizeInvoiceDate helper (same as in routes.ts) to convert "31-Mar-2026" → "2026-03-31"
     const result = await db
       .select({ invoiceDate: orders.invoiceDate })
@@ -390,7 +403,7 @@ export class DatabaseStorage implements IStorage {
       .where(sql`${orders.invoiceDate} IS NOT NULL AND ${orders.invoiceDate} != ''`)
       .orderBy(desc(orders.id))
       .limit(100);
-    if (result.length === 0) return null;
+    if (result.length === 0) return _setCache('latestInvoiceDate', null, 600_000);
     const MONTHS: Record<string, string> = {
       jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",
       jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12",
@@ -405,18 +418,20 @@ export class DatabaseStorage implements IStorage {
       return null;
     };
     const dates = result.map(r => normalize(r.invoiceDate || "")).filter(Boolean) as string[];
-    if (dates.length === 0) return null;
-    return dates.sort().reverse()[0];
+    const best = dates.length === 0 ? null : dates.sort().reverse()[0];
+    return _setCache('latestInvoiceDate', best, 600_000); // 10 min TTL — changes only when new orders arrive
   }
 
   async getEarliestOrderInvoiceDate(): Promise<string | null> {
+    const cached = _getCache<string | null>('earliestInvoiceDate');
+    if (cached !== undefined) return cached;
     const result = await db
       .select({ invoiceDate: orders.invoiceDate })
       .from(orders)
       .where(sql`${orders.invoiceDate} IS NOT NULL AND ${orders.invoiceDate} != ''`)
       .orderBy(asc(orders.id))
       .limit(100);
-    if (result.length === 0) return null;
+    if (result.length === 0) return _setCache('earliestInvoiceDate', null, 600_000);
     const MONTHS: Record<string, string> = {
       jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",
       jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12",
@@ -431,8 +446,8 @@ export class DatabaseStorage implements IStorage {
       return null;
     };
     const dates = result.map(r => normalize(r.invoiceDate || "")).filter(Boolean) as string[];
-    if (dates.length === 0) return null;
-    return dates.sort()[0];
+    const best = dates.length === 0 ? null : dates.sort()[0];
+    return _setCache('earliestInvoiceDate', best, 600_000); // 10 min TTL
   }
 
   async bulkCreateOrders(ordersData: InsertOrder[]): Promise<Order[]> {
@@ -444,7 +459,7 @@ export class DatabaseStorage implements IStorage {
       return { ...order, totalBottles };
     });
     const result = await db.insert(orders).values(withTotalBottles).returning();
-    _invalidate('orders');
+    _invalidate('orders', 'brandTypes', 'latestInvoiceDate', 'earliestInvoiceDate');
     return result;
   }
 
@@ -462,13 +477,13 @@ export class DatabaseStorage implements IStorage {
     const totalBottles = (isNaN(qtyPerCase) ? 0 : qtyPerCase) * (merged.qtyCasesDelivered ?? 0) + (merged.qtyBottlesDelivered ?? 0);
 
     const result = await db.update(orders).set({ ...fields, totalBottles }).where(eq(orders.id, id)).returning();
-    _invalidate('orders');
+    _invalidate('orders', 'brandTypes');
     return result[0];
   }
 
   async deleteOrder(id: number): Promise<void> {
     await db.delete(orders).where(eq(orders.id, id));
-    _invalidate('orders');
+    _invalidate('orders', 'brandTypes');
   }
 
   // Stock

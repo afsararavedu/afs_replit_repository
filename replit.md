@@ -86,6 +86,14 @@ BRR Liquor Soft (BRR IT Solutions) is a full-stack sales management dashboard ap
 - Admin-only "Manage Categories" tab lets Admin add/remove expense and income category names
 - API endpoints: GET/POST /api/expense-categories, DELETE /api/expense-categories/:id, GET/POST /api/daily-expenses, PUT/DELETE /api/daily-expenses/:id
 
+### Performance Architecture
+- **Response logger** — in production, only logs method/path/status/duration (no response body dumping)
+- **In-memory TTL cache** on hot read paths: `getOrders()` (60s), `getStockDetails()` (30s), `getSalesMrpDetails()` (120s), `getBrandTypes()` (5 min), `getLatestOrderInvoiceDate()` / `getEarliestOrderInvoiceDate()` (10 min)
+- **All write methods** invalidate relevant cache keys so stale data is never served
+- **`GET /api/orders/brand-types`** — lightweight endpoint returning only `{brandNumber, productType}[]` used by Sales page instead of full orders list
+- **DB indexes**: `daily_sales.sale_date`, `orders.brand_number`, `orders.invoice_date`, `orders.data_updated`
+- **Sales page** fetches `brand-types` (staleTime 5 min) and `prevDaySales` (staleTime 60s) instead of full orders
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

@@ -23,7 +23,7 @@ import {
   ArrowDown,
   ArrowUpDown,
 } from "lucide-react";
-import { type DailySale, type ShopDetail, type Order } from "@shared/schema";
+import { type DailySale, type ShopDetail } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { PaginationCustom } from "@/components/ui/pagination-custom";
 import { apiRequest } from "@/lib/queryClient";
@@ -97,15 +97,16 @@ export default function Sales() {
     queryKey: ["/api/shop-details"],
   });
 
-  // Orders — needed to map brand → product type for category breakdown
-  const { data: orders } = useQuery<Order[]>({
-    queryKey: ["/api/orders"],
+  // Brand→productType map — lightweight endpoint (no full order data needed)
+  const { data: brandTypes } = useQuery<{ brandNumber: string; productType: string }[]>({
+    queryKey: ["/api/orders/brand-types"],
+    staleTime: 300_000, // 5 minutes — changes only when new orders are imported
   });
   const orderTypeMap = useMemo(() => {
     const map: Record<string, string> = {};
-    (orders || []).forEach((o) => { map[o.brandNumber] = o.productType; });
+    (brandTypes || []).forEach((o) => { map[o.brandNumber] = o.productType; });
     return map;
-  }, [orders]);
+  }, [brandTypes]);
 
   // Previous day's saved sales — used to calculate Opening Balance Value
   const prevDateStr = useMemo(() => {

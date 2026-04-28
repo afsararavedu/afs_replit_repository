@@ -1287,6 +1287,16 @@ export async function registerRoutes(
     res.json(result);
   });
 
+  // Lightweight brand→productType map used by the Sales page (avoids fetching all orders)
+  app.get("/api/orders/brand-types", async (_req, res) => {
+    try {
+      const data = await storage.getBrandTypes();
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch brand types" });
+    }
+  });
+
   // Check if invoice already exists by invoice_date + icdc_number
   app.get("/api/orders/check-invoice", async (req, res) => {
     const invoiceDate = req.query.invoice_date as string | undefined;
@@ -1457,9 +1467,9 @@ export async function registerRoutes(
         0
       );
 
-      const allOrders = await storage.getOrders();
+      const brandTypes = await storage.getBrandTypes();
       const orderTypeMap: Record<string, string> = {};
-      for (const o of allOrders) {
+      for (const o of brandTypes) {
         orderTypeMap[o.brandNumber] = o.productType;
       }
 
