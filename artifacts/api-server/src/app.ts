@@ -48,6 +48,13 @@ app.use(
 );
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
 
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+  next();
+});
+
 app.use("/api", router);
 
 export default app;
