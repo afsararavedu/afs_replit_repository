@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { type StockDetail, type InsertStockDetail, type DailyStock } from "@shared/schema";
@@ -54,6 +54,18 @@ export default function Stock() {
     () => new Set(availableStockDatesData?.dates ?? []),
     [availableStockDatesData],
   );
+
+  // On first load: if today has no snapshot, jump to the most recent one
+  const hasAutoSelectedStock = useRef(false);
+  useEffect(() => {
+    if (!availableStockDatesData || hasAutoSelectedStock.current) return;
+    hasAutoSelectedStock.current = true;
+    const today = getTodayLocal();
+    const dates = availableStockDatesData.dates;
+    if (dates.length > 0 && !dates.includes(today)) {
+      setStockViewDate(dates[dates.length - 1]);
+    }
+  }, [availableStockDatesData]);
 
   // Current stock (editable, always today's live data)
   const { data: stock, isLoading } = useQuery<StockDetail[]>({
@@ -158,6 +170,7 @@ export default function Stock() {
                 <Calendar
                   mode="single"
                   selected={parse(stockViewDate, "yyyy-MM-dd", new Date())}
+                  defaultMonth={parse(stockViewDate, "yyyy-MM-dd", new Date())}
                   onSelect={(date) => {
                     if (date) {
                       const y = date.getFullYear();

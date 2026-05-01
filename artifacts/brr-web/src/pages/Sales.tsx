@@ -161,8 +161,35 @@ export default function Sales() {
     [availableSalesDatesData],
   );
 
-  // No auto-switch needed: the selectable range is [earliestOrderDate, today]
-  // so any date with orders is always a valid selection
+  // Sorted list of navigable dates = all dates with data + today
+  const sortedAvailableDates = useMemo(() => {
+    const today = getTodayLocal();
+    const all = new Set([...availableSalesDateSet, today]);
+    return Array.from(all).sort();
+  }, [availableSalesDateSet]);
+
+  // Previous / next available date for the arrow buttons
+  const prevAvailableDate = useMemo(() => {
+    const before = sortedAvailableDates.filter(d => d < selectedDate);
+    return before.length > 0 ? before[before.length - 1] : null;
+  }, [selectedDate, sortedAvailableDates]);
+
+  const nextAvailableDate = useMemo(() => {
+    const after = sortedAvailableDates.filter(d => d > selectedDate);
+    return after.length > 0 ? after[0] : null;
+  }, [selectedDate, sortedAvailableDates]);
+
+  // On first load: if today has no data, jump straight to the most recent date that does
+  const hasAutoSelected = useRef(false);
+  useEffect(() => {
+    if (!availableSalesDatesData || hasAutoSelected.current) return;
+    hasAutoSelected.current = true;
+    const today = getTodayLocal();
+    const dates = availableSalesDatesData.dates;
+    if (dates.length > 0 && !dates.includes(today)) {
+      setSelectedDate(dates[dates.length - 1]);
+    }
+  }, [availableSalesDatesData]);
 
   // Compute summary client-side from localSales so it updates in real-time
   const summary = useMemo<SalesSummary>(() => {
@@ -947,18 +974,13 @@ export default function Sales() {
           <h2 className="text-xl font-semibold text-foreground">{shopName}</h2>
         </div>
         <div className="flex items-center gap-1">
-          {/* Previous Day Button */}
+          {/* Previous Available Date Button */}
           <button
             data-testid="button-prev-date"
-            onClick={() => {
-              const d = parseDateLocal(selectedDate);
-              d.setDate(d.getDate() - 1);
-              const prev = formatDateLocal(d);
-              if (prev >= earliestOrderDateStr) setSelectedDate(prev);
-            }}
-            disabled={selectedDate <= earliestOrderDateStr}
+            onClick={() => { if (prevAvailableDate) setSelectedDate(prevAvailableDate); }}
+            disabled={!prevAvailableDate}
             className="p-2 rounded-lg border border-border bg-card hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Previous day"
+            title="Previous date with data"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -980,6 +1002,7 @@ export default function Sales() {
               <Calendar
                 mode="single"
                 selected={parse(selectedDate, "yyyy-MM-dd", new Date())}
+                defaultMonth={parse(selectedDate, "yyyy-MM-dd", new Date())}
                 onSelect={(date) => {
                   if (date) {
                     const y = date.getFullYear();
@@ -1017,19 +1040,13 @@ export default function Sales() {
             </PopoverContent>
           </Popover>
 
-          {/* Next Day Button */}
+          {/* Next Available Date Button */}
           <button
             data-testid="button-next-date"
-            onClick={() => {
-              const d = parseDateLocal(selectedDate);
-              d.setDate(d.getDate() + 1);
-              const next = formatDateLocal(d);
-              const today = getTodayLocal();
-              if (next <= today) setSelectedDate(next);
-            }}
-            disabled={selectedDate >= format(new Date(), "yyyy-MM-dd")}
+            onClick={() => { if (nextAvailableDate) setSelectedDate(nextAvailableDate); }}
+            disabled={!nextAvailableDate}
             className="p-2 rounded-lg border border-border bg-card hover:bg-accent transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="Next day"
+            title="Next date with data"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
