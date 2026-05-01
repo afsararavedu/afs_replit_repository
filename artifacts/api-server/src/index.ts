@@ -20,6 +20,22 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
+// Fail fast in production if SESSION_SECRET is not configured. Without a
+// real secret the session cookie signer falls back to a hardcoded value,
+// which would let anyone who knows that value forge valid login cookies
+// for any user (including admins). Better to refuse to start than to
+// silently expose every account.
+const nodeEnv = process.env["NODE_ENV"] ?? "development";
+if (nodeEnv === "production" && !process.env["SESSION_SECRET"]) {
+  logger.error(
+    "SESSION_SECRET environment variable is required in production but " +
+      "was not provided. Refusing to start: a missing secret would let " +
+      "attackers forge valid login sessions. Set SESSION_SECRET to a " +
+      "long random value (e.g. `openssl rand -hex 32`) and restart.",
+  );
+  process.exit(1);
+}
+
 const httpServer = createServer(app);
 
 (async () => {

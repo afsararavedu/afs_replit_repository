@@ -66,3 +66,7 @@ lib/
 - The frontend's `@shared/*` alias resolves to `artifacts/brr-web/src/shared/` (local type copies, no backend imports)
 - Session store uses `connect-pg-simple` (PostgreSQL-backed sessions)
 - Default users seeded: `admin` / `admin123`, `employee` / `employee123`
+
+## Required production secrets
+
+- **`SESSION_SECRET`** — Long random string used to sign session cookies. **Required when `NODE_ENV=production`**: the api-server refuses to start without it (see `artifacts/api-server/src/index.ts`). In development a clear warning is logged and an insecure fallback is used. Generate with `openssl rand -hex 32`.

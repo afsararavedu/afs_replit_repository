@@ -5,6 +5,9 @@ import session from "express-session";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
 import { User as SelectUser } from "@workspace/db";
+import { logger } from "./lib/logger";
+
+const DEV_SESSION_SECRET_FALLBACK = "salespro-dev-only-not-for-production";
 
 declare global {
   namespace Express {
@@ -47,8 +50,30 @@ export const requireAdmin: RequestHandler = (req, res, next) => {
 
 export function setupAuth(app: Express) {
   const isProduction = app.get("env") === "production";
+
+  // SESSION_SECRET is required in production. The startup check in
+  // src/index.ts already enforces this and aborts the process if it's
+  // missing, so by the time we get here in production the env var must
+  // be set. The check below is a defensive last line of defence in case
+  // setupAuth is ever invoked from a different entry point.
+  const envSecret = process.env.SESSION_SECRET;
+  if (isProduction && !envSecret) {
+    throw new Error(
+      "SESSION_SECRET environment variable is required in production. " +
+        "Refusing to start with a hardcoded fallback secret because that " +
+        "would let anyone forge valid login cookies for any user.",
+    );
+  }
+  if (!envSecret) {
+    logger.warn(
+      "SESSION_SECRET is not set; using an insecure development fallback. " +
+        "Set SESSION_SECRET to a long random value before deploying.",
+    );
+  }
+  const secret = envSecret || DEV_SESSION_SECRET_FALLBACK;
+
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET || "salespro-secret",
+    secret,
     resave: false,
     saveUninitialized: false,
     store: storage.sessionStore,
