@@ -100,11 +100,6 @@ export default function EditSaleScreen() {
     String(defaultClosingBottles),
   );
   const [breakage, setBreakage] = useState<string>(String(initialBreakage));
-  // Tracks whether the user actually edited any of the inputs in this
-  // session. The web Save Sales button only persists touched rows and
-  // sends zeroed closing/sold for untouched rows so the DB stays clean;
-  // we mirror that here.
-  const [hasEdits, setHasEdits] = useState<boolean>(false);
 
   const computed = useMemo(() => {
     const clsCs = toInt(closingCases);
@@ -189,53 +184,35 @@ export default function EditSaleScreen() {
       return;
     }
 
-    // Mirror web "Save Sales" semantics:
-    // - touched rows persist computed values
-    // - untouched rows persist zeroed closing/sold so the row stays clean
-    //   in the database (still recording the breakage and total stock)
-    const row: Record<string, unknown> = hasEdits
-      ? {
-          brandNumber,
-          brandName,
-          size,
-          quantityPerCase,
-          openingBalanceBottles,
-          newStockCases,
-          newStockBottles,
-          closingBalanceCases: computed.clsCs,
-          closingBalanceBottles: computed.clsBtls,
-          breakageBottles: computed.brk,
-          soldBottles: computed.soldBottles,
-          mrp: String(mrp),
-          saleValue: computed.saleValue.toFixed(2),
-          totalSaleValue: computed.saleValue.toFixed(2),
-          totalClosingStock: computed.totalClosingStock,
-          finalClosingBalance: computed.finalClosingBalance,
-          saleDate,
-          invoiceDate,
-          isSubmitted: false,
-        }
-      : {
-          brandNumber,
-          brandName,
-          size,
-          quantityPerCase,
-          openingBalanceBottles,
-          newStockCases,
-          newStockBottles,
-          closingBalanceCases: 0,
-          closingBalanceBottles: 0,
-          breakageBottles: initialBreakage,
-          soldBottles: 0,
-          mrp: String(mrp),
-          saleValue: "0.00",
-          totalSaleValue: "0.00",
-          totalClosingStock: computed.totalStock,
-          finalClosingBalance: Math.round(computed.totalStock - initialBreakage),
-          saleDate,
-          invoiceDate,
-          isSubmitted: false,
-        };
+    // Single-row edit semantics: always persist the values currently shown
+    // in the form. The form is pre-populated with the row's existing
+    // persisted values (defaultClosingCases / defaultClosingBottles /
+    // initialBreakage), so saving without changes is a no-op write of the
+    // existing values rather than a destructive zeroing of the row.
+    // (The web "untouched row = zero" rule only applies to the bulk grid
+    // where every visible row submits in one POST; here the user has
+    // explicitly opened a single row to edit it.)
+    const row: Record<string, unknown> = {
+      brandNumber,
+      brandName,
+      size,
+      quantityPerCase,
+      openingBalanceBottles,
+      newStockCases,
+      newStockBottles,
+      closingBalanceCases: computed.clsCs,
+      closingBalanceBottles: computed.clsBtls,
+      breakageBottles: computed.brk,
+      soldBottles: computed.soldBottles,
+      mrp: String(mrp),
+      saleValue: computed.saleValue.toFixed(2),
+      totalSaleValue: computed.saleValue.toFixed(2),
+      totalClosingStock: computed.totalClosingStock,
+      finalClosingBalance: computed.finalClosingBalance,
+      saleDate,
+      invoiceDate,
+      isSubmitted: false,
+    };
 
     save.mutate({ rows: [row], deleteIds: [] });
   };
@@ -318,10 +295,7 @@ export default function EditSaleScreen() {
         </Text>
         <TextInput
           value={closingCases}
-          onChangeText={(v) => {
-            setClosingCases(v);
-            setHasEdits(true);
-          }}
+          onChangeText={setClosingCases}
           keyboardType="number-pad"
           placeholder="0"
           placeholderTextColor={colors.mutedForeground}
@@ -341,10 +315,7 @@ export default function EditSaleScreen() {
         </Text>
         <TextInput
           value={closingBottles}
-          onChangeText={(v) => {
-            setClosingBottles(v);
-            setHasEdits(true);
-          }}
+          onChangeText={setClosingBottles}
           keyboardType="number-pad"
           placeholder="0"
           placeholderTextColor={colors.mutedForeground}
@@ -364,10 +335,7 @@ export default function EditSaleScreen() {
         </Text>
         <TextInput
           value={breakage}
-          onChangeText={(v) => {
-            setBreakage(v);
-            setHasEdits(true);
-          }}
+          onChangeText={setBreakage}
           keyboardType="number-pad"
           placeholder="0"
           placeholderTextColor={colors.mutedForeground}
