@@ -59,6 +59,20 @@ function AuthGate() {
           headerShown: true,
         }}
       />
+      <Stack.Screen
+        name="order-edit"
+        options={{
+          presentation: "modal",
+          headerShown: true,
+        }}
+      />
+      <Stack.Screen
+        name="stock-add"
+        options={{
+          presentation: "modal",
+          headerShown: true,
+        }}
+      />
     </Stack>
   );
 }

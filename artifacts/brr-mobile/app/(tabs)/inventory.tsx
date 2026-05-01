@@ -1,8 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -22,16 +24,46 @@ interface OrderRow {
   invoiceDate?: string | null;
   brandNumber: string;
   brandName: string;
+  productType?: string | null;
+  packType?: string | null;
   packSize?: string | null;
   qtyCasesDelivered?: number | null;
   qtyBottlesDelivered?: number | null;
+  ratePerCase?: number | string | null;
+  unitRatePerBottle?: number | string | null;
   totalAmount?: number | string | null;
-  productType?: string | null;
+  breakageBottleQty?: number | null;
+  remarks?: string | null;
 }
 
 export default function InventoryTab() {
   const colors = useColors();
+  const router = useRouter();
   const [search, setSearch] = useState("");
+
+  const openEdit = (item: OrderRow) => {
+    if (!item.id) return;
+    router.push({
+      pathname: "/order-edit",
+      params: {
+        id: String(item.id),
+        brandNumber: item.brandNumber,
+        brandName: item.brandName,
+        productType: item.productType ?? "",
+        packType: item.packType ?? "",
+        packSize: item.packSize ?? "",
+        qtyCasesDelivered: String(item.qtyCasesDelivered ?? 0),
+        qtyBottlesDelivered: String(item.qtyBottlesDelivered ?? 0),
+        ratePerCase: String(item.ratePerCase ?? 0),
+        unitRatePerBottle: String(item.unitRatePerBottle ?? 0),
+        totalAmount: String(item.totalAmount ?? 0),
+        breakageBottleQty: String(item.breakageBottleQty ?? 0),
+        invoiceDate: item.invoiceDate ?? "",
+        icdcNumber: item.icdcNumber ?? "",
+        remarks: item.remarks ?? "",
+      },
+    });
+  };
 
   const query = useQuery<OrderRow[]>({
     queryKey: ["orders"],
@@ -119,13 +151,17 @@ export default function InventoryTab() {
             />
           }
           renderItem={({ item }) => (
-            <View
-              style={[
+            <Pressable
+              onPress={() => openEdit(item)}
+              disabled={!item.id}
+              testID={`order-row-${item.id ?? item.brandNumber}`}
+              style={({ pressed }) => [
                 styles.card,
                 {
                   backgroundColor: colors.card,
                   borderColor: colors.border,
                   borderRadius: colors.radius,
+                  opacity: pressed && item.id ? 0.85 : 1,
                 },
               ]}
             >
@@ -153,6 +189,13 @@ export default function InventoryTab() {
                     {item.invoiceDate || "—"}
                   </Text>
                 </View>
+                {item.id ? (
+                  <Feather
+                    name="chevron-right"
+                    size={18}
+                    color={colors.mutedForeground}
+                  />
+                ) : null}
               </View>
               <View style={styles.row}>
                 <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>
@@ -182,7 +225,7 @@ export default function InventoryTab() {
                   {formatINR(item.totalAmount)}
                 </Text>
               </View>
-            </View>
+            </Pressable>
           )}
         />
       )}

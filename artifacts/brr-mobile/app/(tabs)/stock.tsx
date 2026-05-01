@@ -1,8 +1,10 @@
 import { Feather } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
 import {
   FlatList,
+  Pressable,
   RefreshControl,
   StyleSheet,
   Text,
@@ -31,7 +33,23 @@ interface StockRow {
 
 export default function StockTab() {
   const colors = useColors();
+  const router = useRouter();
   const [search, setSearch] = useState("");
+
+  const openAdd = (item: StockRow) => {
+    router.push({
+      pathname: "/stock-add",
+      params: {
+        brandNumber: item.brandNumber,
+        brandName: item.brandName,
+        size: item.size,
+        quantityPerCase: String(item.quantityPerCase ?? 0),
+        mrp: String(item.mrp ?? 0),
+        currentCases: String(item.stockInCases ?? 0),
+        currentBottles: String(item.stockInBottles ?? 0),
+      },
+    });
+  };
 
   const query = useQuery<StockRow[]>({
     queryKey: ["stock"],
@@ -144,13 +162,16 @@ export default function StockTab() {
             />
           }
           renderItem={({ item }) => (
-            <View
-              style={[
+            <Pressable
+              onPress={() => openAdd(item)}
+              testID={`stock-row-${item.brandNumber}-${item.size}`}
+              style={({ pressed }) => [
                 styles.card,
                 {
                   backgroundColor: colors.card,
                   borderColor: colors.border,
                   borderRadius: colors.radius,
+                  opacity: pressed ? 0.85 : 1,
                 },
               ]}
             >
@@ -177,6 +198,11 @@ export default function StockTab() {
                     {item.size}
                   </Text>
                 </View>
+                <Feather
+                  name="chevron-right"
+                  size={18}
+                  color={colors.mutedForeground}
+                />
               </View>
               <View style={styles.row}>
                 <Text style={[styles.rowLabel, { color: colors.mutedForeground }]}>
@@ -202,7 +228,7 @@ export default function StockTab() {
                   {formatINR(item.totalStockValue)}
                 </Text>
               </View>
-            </View>
+            </Pressable>
           )}
         />
       )}
