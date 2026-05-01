@@ -34,6 +34,13 @@ function _setCache<T>(key: string, data: T, ttlMs: number): T {
 function _invalidate(...keys: string[]) { keys.forEach(k => _cache.delete(k)); }
 // ──────────────────────────────────────────────────────────────────────────
 
+// Sort brand_number numerically by its leading digits; brand_numbers that do
+// not start with a digit (e.g. "TEST-Z") fall back to alphabetical order at
+// the end of the list. Plain `CAST(brand_number AS INTEGER)` throws and turns
+// into a 500 the moment a non-numeric value enters the table, breaking the
+// Sales tab for everyone.
+const brandNumberOrder = sql`(NULLIF(substring(brand_number FROM '^[0-9]+'), ''))::int NULLS LAST, brand_number ASC`;
+
 const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
@@ -145,11 +152,11 @@ export class DatabaseStorage implements IStorage {
 
   // Sales
   async getDailySales(): Promise<DailySale[]> {
-    return await db.select().from(dailySales).orderBy(sql`CAST(brand_number AS INTEGER)`);
+    return await db.select().from(dailySales).orderBy(brandNumberOrder);
   }
 
   async getDailySalesByDate(date: string): Promise<DailySale[]> {
-    return await db.select().from(dailySales).where(eq(dailySales.saleDate, date)).orderBy(sql`CAST(brand_number AS INTEGER)`);
+    return await db.select().from(dailySales).where(eq(dailySales.saleDate, date)).orderBy(brandNumberOrder);
   }
 
   async getEarliestInvoiceDate(): Promise<string | null> {
@@ -490,11 +497,11 @@ export class DatabaseStorage implements IStorage {
   async getStockDetails(): Promise<StockDetail[]> {
     const cached = _getCache<StockDetail[]>('stockDetails');
     if (cached) return cached;
-    const existing = await db.select().from(stockDetails).orderBy(sql`CAST(brand_number AS INTEGER)`);
+    const existing = await db.select().from(stockDetails).orderBy(brandNumberOrder);
     if (existing.length === 0) {
       // Auto-populate from the most recent daily_stock snapshot
       await this.populateStockFromLatestSnapshot();
-      return _setCache('stockDetails', await db.select().from(stockDetails).orderBy(sql`CAST(brand_number AS INTEGER)`), 30_000);
+      return _setCache('stockDetails', await db.select().from(stockDetails).orderBy(brandNumberOrder), 30_000);
     }
     return _setCache('stockDetails', existing, 30_000); // 30s TTL
   }
@@ -968,7 +975,7 @@ export class DatabaseStorage implements IStorage {
   async getSalesMrpDetails(): Promise<SalesMrpDetail[]> {
     const cached = _getCache<SalesMrpDetail[]>('salesMrp');
     if (cached) return cached;
-    const result = await db.select().from(salesMrpDetails).orderBy(sql`CAST(brand_number AS INTEGER)`);
+    const result = await db.select().from(salesMrpDetails).orderBy(brandNumberOrder);
     return _setCache('salesMrp', result, 120_000); // 2 minute TTL
   }
 
