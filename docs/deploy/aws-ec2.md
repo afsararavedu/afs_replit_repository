@@ -219,7 +219,7 @@ curl -s http://127.0.0.1:8080/api/healthz
 # {"status":"ok"}
 ```
 
-### 8.2 nginx
+### 8.2 nginx (pre-cert bootstrap)
 ```bash
 sudo cp deploy/aws-ec2/nginx.conf.example /etc/nginx/conf.d/brr.conf
 sudo sed -i 's/brr.example.com/<your-actual-domain>/g' /etc/nginx/conf.d/brr.conf
@@ -227,12 +227,22 @@ sudo sed -i 's/brr.example.com/<your-actual-domain>/g' /etc/nginx/conf.d/brr.con
 #   Amazon Linux 2023: edit /etc/nginx/nginx.conf and delete or comment out
 #     the default `server { listen 80 default_server; ... }` block.
 #   Ubuntu: `sudo rm /etc/nginx/sites-enabled/default`
+```
+
+The shipped `nginx.conf.example` assumes you already have a TLS cert: the port-80 server redirects to HTTPS, and the port-443 server references `/etc/letsencrypt/live/.../fullchain.pem`. On a brand-new box those files don't exist yet, so nginx will refuse to start. **Before** the first `nginx -t`, edit `/etc/nginx/conf.d/brr.conf` so port 80 serves the app directly. The minimum edit is:
+
+1. In the **port-80 server**, comment out the `location / { return 301 https://...; }` block and add the contents of the port-443 `server { ... }` block (everything from `client_max_body_size 16m;` down through the closing `}` of `location /`) directly inside the port-80 server.
+2. Comment out (or delete) the **entire port-443 server block**, including the `ssl_certificate*` lines that point at files that don't exist yet.
+
+Then bring nginx up:
+```bash
 sudo nginx -t
 sudo systemctl enable --now nginx
 sudo systemctl reload nginx
+# Verify the app loads over plain HTTP at http://<your-domain>/ before continuing.
 ```
 
-Until you've issued a TLS cert, comment out the `listen 443 ssl http2;` lines and the `ssl_certificate*` lines in `brr.conf`, and let the HTTP server block serve traffic on port 80 directly. After certbot runs, restore them.
+Section 8.3 will run certbot, which puts the original two-server-block layout back (port 80 → redirect, port 443 → app) and fills in the real cert paths.
 
 ### 8.3 TLS via Let's Encrypt
 ```bash
