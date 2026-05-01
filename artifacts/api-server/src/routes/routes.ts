@@ -489,7 +489,7 @@ async function parseUploadedFile(buffer: Buffer, filename: string): Promise<{ or
   }
 }
 
-import { setupAuth } from "../auth";
+import { setupAuth, requireAuth } from "../auth";
 import bcrypt from "bcryptjs";
 
 /** Convert various invoice date formats to YYYY-MM-DD for comparison */
@@ -534,6 +534,12 @@ export async function registerRoutes(
   app: Express,
 ): Promise<Server> {
   setupAuth(app);
+
+  // From this point on, every /api route requires an authenticated session.
+  // Public auth endpoints (login, register, logout, user, forgot/reset
+  // password) are registered above inside setupAuth(), and the unauthenticated
+  // /api/healthz check is mounted in app.ts before this middleware runs.
+  app.use("/api", requireAuth);
 
   // Sales
   app.get(api.sales.list.path, async (req, res) => {

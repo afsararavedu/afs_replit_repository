@@ -1,6 +1,6 @@
 import passport from "passport";
 import { Strategy as LocalStrategy } from "passport-local";
-import { Express } from "express";
+import { Express, Request, Response, NextFunction } from "express";
 import session from "express-session";
 import bcrypt from "bcryptjs";
 import { storage } from "./storage";
@@ -10,6 +10,19 @@ declare global {
   namespace Express {
     interface User extends SelectUser {}
   }
+}
+
+/**
+ * Middleware that requires a valid authenticated session.
+ * Returns 401 with `{ message: "Unauthorized" }` and does not invoke any
+ * downstream handler when the request is not authenticated.
+ * Apply this to any /api route that should only serve logged-in users.
+ */
+export function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (req.isAuthenticated()) {
+    return next();
+  }
+  return res.status(401).json({ message: "Unauthorized" });
 }
 
 export function setupAuth(app: Express) {
