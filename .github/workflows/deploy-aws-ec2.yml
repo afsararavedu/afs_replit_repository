@@ -1,0 +1,118 @@
+name: Deploy to AWS EC2
+
+# Builds the BRR Liquor Soft release in CI and ships it to the EC2 box over
+# SSH. See docs/deploy/aws-ec2.md (section "CI/CD") for the full description
+# of what this workflow does and which secrets it needs.
+#
+# Triggers:
+#   - push to main: every merged PR ships automatically.
+#   - workflow_dispatch: lets you re-run the same build/deploy on demand from
+#     the GitHub Actions UI (useful for redeploying without a new commit).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Only one deploy at a time. If a second push lands while a deploy is in
+# flight we let the in-flight one finish (cancel-in-progress: false) so we
+# never leave the EC2 box with a half-rsynced release directory.
+concurrency:
+  group: deploy-aws-ec2
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build release and rsync to EC2
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      EC2_HOST: ${{ secrets.EC2_HOST }}
+      EC2_USER: ${{ secrets.EC2_USER }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Enable corepack (provides pnpm)
+        run: corepack enable
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Build release
+        # scripts/deploy/build-release.sh runs `pnpm install --frozen-lockfile`
+        # itself, so we don't need a separate install step.
+        run: bash scripts/deploy/build-release.sh
+
+      - name: Configure SSH
+        # Write the deploy key to ~/.ssh/id_ed25519 with strict permissions
+        # and pin the EC2 host's public key in known_hosts so rsync/ssh do
+        # not prompt or accept a man-in-the-middle key. Secrets are passed
+        # through env: rather than expanded inline so quotes/newlines in the
+        # private key cannot break out of the shell context.
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # Prefer a pre-pinned EC2_KNOWN_HOSTS secret if present (recommended);
+          # otherwise fall back to a one-shot ssh-keyscan (TOFU).
+          if [ -n "$EC2_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$EC2_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -t rsa,ecdsa,ed25519 -H "$EC2_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Rsync web build to /var/www/brr-web
+        # The brr user owns /var/www/brr-web (see runbook section 2.1), so we
+        # rsync directly as $EC2_USER without sudo. If your deploy user is not
+        # `brr`, grant it write access to /var/www/brr-web or switch to the
+        # rsync-with-sudo recipe documented in the runbook.
+        run: |
+          rsync -az --delete \
+            -e "ssh -o BatchMode=yes" \
+            release/web/ \
+            "$EC2_USER@$EC2_HOST:/var/www/brr-web/"
+
+      - name: Rsync api build to /opt/brr/repo/release/api
+        # Note: this only ships the bundled api-server (dist/, package.json,
+        # pnpm-lock.yaml). It does NOT run `pnpm install --prod` on the box;
+        # the runbook explicitly only re-runs that when pnpm-lock.yaml
+        # changes. See docs/deploy/aws-ec2.md section "CI/CD" for the
+        # follow-up step to run when lockfile changes land.
+        run: |
+          rsync -az --delete \
+            -e "ssh -o BatchMode=yes" \
+            release/api/ \
+            "$EC2_USER@$EC2_HOST:/opt/brr/repo/release/api/"
+
+      - name: Restart brr-api systemd service
+        # Requires that $EC2_USER can run `systemctl restart brr-api` via
+        # sudo without a password. The runbook shows the sudoers snippet.
+        run: |
+          ssh -o BatchMode=yes "$EC2_USER@$EC2_HOST" \
+            'sudo systemctl restart brr-api && sudo systemctl is-active brr-api'
+
+      - name: Smoke-test /api/healthz
+        # Final sanity check: the api should answer 200 OK on its health
+        # endpoint within a few seconds of the restart.
+        run: |
+          ssh -o BatchMode=yes "$EC2_USER@$EC2_HOST" \
+            'for i in 1 2 3 4 5; do
+               if curl -fsS http://127.0.0.1:8080/api/healthz >/dev/null; then
+                 echo "api healthy"; exit 0;
+               fi
+               sleep 2;
+             done
+             echo "api did not become healthy in time" >&2
+             journalctl -u brr-api -n 50 --no-pager >&2 || true
+             exit 1'

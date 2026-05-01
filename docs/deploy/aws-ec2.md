@@ -298,12 +298,82 @@ sudo tail -f /var/log/nginx/error.log   # nginx errors
 - `GET /api/healthz` → `{"status":"ok"}`. Use this for ALB target-group health checks (path `/api/healthz`, success code `200`).
 
 ### Deploying a new version
+
+Day-to-day deploys go through the GitHub Actions workflow described in section 11.1 -- merging a PR to `main` is enough. The manual SSH-based recipe below is the fallback for when CI is unavailable or you need to deploy a non-`main` branch.
+
 1. SSH in.
 2. `cd /opt/brr/repo && sudo -u brr git pull && sudo -u brr bash scripts/deploy/build-release.sh`
 3. `sudo -u brr pnpm install --prod --filter @workspace/api-server --frozen-lockfile`
 4. `sudo rsync -a --delete /opt/brr/repo/release/web/ /var/www/brr-web/`
 5. `sudo systemctl restart brr-api`
 6. `sudo systemctl reload nginx` (only needed if `nginx.conf.example` itself changed)
+
+### 11.1 CI/CD with GitHub Actions
+
+`.github/workflows/deploy-aws-ec2.yml` runs the same `scripts/deploy/build-release.sh` in CI on every push to `main` (and on demand via the "Run workflow" button), then rsyncs the result over SSH and restarts the api. With it wired up, a production deploy is just "merge the PR".
+
+**What the workflow does, step by step:**
+1. Checks out the repo on a GitHub-hosted Ubuntu runner.
+2. Installs Node 24 + pnpm via `corepack` (matching the EC2 box) and caches the pnpm store between runs.
+3. Runs `bash scripts/deploy/build-release.sh`, producing `release/web/` and `release/api/` on the runner.
+4. Writes the deploy SSH key to `~/.ssh/id_ed25519` and pins the EC2 host key in `~/.ssh/known_hosts`.
+5. `rsync -az --delete release/web/  $EC2_USER@$EC2_HOST:/var/www/brr-web/`
+6. `rsync -az --delete release/api/  $EC2_USER@$EC2_HOST:/opt/brr/repo/release/api/`
+7. `ssh ... 'sudo systemctl restart brr-api && sudo systemctl is-active brr-api'`
+8. Smoke-tests `http://127.0.0.1:8080/api/healthz` from the EC2 box; fails the build (and dumps the last 50 journal lines) if it doesn't return 200 within ~10 seconds.
+
+**Required repo secrets** (Settings → Secrets and variables → Actions → New repository secret):
+
+| Secret              | Value                                                                                       |
+|---------------------|---------------------------------------------------------------------------------------------|
+| `SSH_PRIVATE_KEY`   | Private half of an SSH key dedicated to deploys. Generate with `ssh-keygen -t ed25519 -C "brr-deploy" -f brr-deploy -N ""` and paste the contents of `brr-deploy` (the **private** file) here. |
+| `EC2_HOST`          | Public DNS or Elastic IP of the EC2 instance, e.g. `54.123.45.67` or `ec2-...amazonaws.com`. |
+| `EC2_USER`          | The SSH user the workflow logs in as. Use `brr` (the service user from section 2.1) so the rsync targets are owned correctly without sudo. |
+
+**Optional secret** (recommended for stricter host verification):
+
+| Secret              | Value                                                                                                                |
+|---------------------|----------------------------------------------------------------------------------------------------------------------|
+| `EC2_KNOWN_HOSTS`   | Output of `ssh-keyscan -t rsa,ecdsa,ed25519 -H <EC2_HOST>` run from a trusted machine. If unset, the workflow falls back to a one-shot `ssh-keyscan` at deploy time (TOFU). |
+
+**One-time setup on the EC2 box:**
+
+1. **Authorize the deploy key** for the `brr` user:
+   ```bash
+   sudo -u brr mkdir -p /opt/brr/.ssh
+   sudo -u brr touch /opt/brr/.ssh/authorized_keys
+   sudo chmod 700 /opt/brr/.ssh
+   sudo chmod 600 /opt/brr/.ssh/authorized_keys
+   # Paste the *public* half (brr-deploy.pub) onto its own line:
+   echo 'ssh-ed25519 AAAA... brr-deploy' | sudo tee -a /opt/brr/.ssh/authorized_keys
+   ```
+   Make sure `brr`'s shell is something real (`/bin/bash`), not `/usr/sbin/nologin` -- section 2.1 created it with `nologin`, which blocks SSH. Fix with:
+   ```bash
+   sudo usermod --shell /bin/bash brr
+   ```
+
+2. **Allow `brr` to restart the api without a password.** Create `/etc/sudoers.d/brr-deploy` (use `sudo visudo -f /etc/sudoers.d/brr-deploy`) with exactly:
+   ```
+   brr ALL=(root) NOPASSWD: /bin/systemctl restart brr-api, /bin/systemctl is-active brr-api
+   ```
+   On Ubuntu the binary lives at `/usr/bin/systemctl` -- adjust the path to match `which systemctl` on your distro. Tighten to just the two commands the workflow actually runs; this is what keeps the deploy key from being a root key.
+
+3. **Confirm the deploy directories are writable by `brr`.** Section 2.1 already chowns `/var/www/brr-web` and `/opt/brr` to `brr:brr`, but if you've been deploying as `ec2-user` re-check ownership before the first CI deploy:
+   ```bash
+   sudo chown -R brr:brr /var/www/brr-web /opt/brr/repo/release
+   ```
+
+**When `pnpm-lock.yaml` changes:** the workflow intentionally does **not** run `pnpm install --prod` on the box, because that step also pulls native modules (e.g. `bcrypt`, `pg-native`) and is the slowest part of a deploy. When a PR lands that touches `pnpm-lock.yaml`, SSH in once after the deploy finishes and run:
+```bash
+sudo -u brr -H bash -lc 'cd /opt/brr/repo && git pull && pnpm install --prod --filter @workspace/api-server --frozen-lockfile'
+sudo systemctl restart brr-api
+```
+
+**Database migrations** are also still manual on purpose (see section 7.2). The CI workflow only ships code; it does not touch the database.
+
+**Triggering on demand:** GitHub UI → Actions → "Deploy to AWS EC2" → "Run workflow" → choose `main`. Useful for redeploying the same commit (e.g. after rotating `SESSION_SECRET` on the box and needing a clean restart, or after a manual env change).
+
+**Rolling back via CI:** revert the offending commit on `main` and let the workflow ship the revert. For an immediate hot rollback that doesn't wait on CI, fall back to the manual SSH recipe in the previous subsection or the `git checkout <previous-good-sha>` recipe in "Rolling back" below.
 
 ### Rolling back
 The simplest rollback is `git`-driven: `cd /opt/brr/repo && git checkout <previous-good-sha> && bash scripts/deploy/build-release.sh && sudo systemctl restart brr-api && sudo rsync -a --delete release/web/ /var/www/brr-web/`. The `release/` folder is regenerated from source each time, so the rollback always matches the chosen commit exactly.
