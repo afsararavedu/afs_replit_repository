@@ -65,8 +65,9 @@ lib/
 - The replit.md mentions `zod/v4` but the workspace actually uses `zod` v3 (`^3.25.76`)
 - The frontend's `@shared/*` alias resolves to `artifacts/brr-web/src/shared/` (local type copies, no backend imports)
 - Session store uses `connect-pg-simple` (PostgreSQL-backed sessions)
-- Default users seeded: `admin` / `admin123`, `employee` / `employee123`
+- Initial admin bootstrap: on first startup against an empty `users` table the api-server creates a single `admin` account. The password comes from `ADMIN_BOOTSTRAP_PASSWORD` if that env var is set (must be ≥ 8 characters), otherwise a random one is generated and printed once to the server log. The account is created with `mustResetPassword: true`, so the operator is forced to set a real password on first login. No other accounts (including any "employee" account) are seeded — additional users must be created from inside the app by an admin.
 
 ## Required production secrets
 
 - **`SESSION_SECRET`** — Long random string used to sign session cookies. **Required when `NODE_ENV=production`**: the api-server refuses to start without it (see `artifacts/api-server/src/index.ts`). In development a clear warning is logged and an insecure fallback is used. Generate with `openssl rand -hex 32`.
+- **`ADMIN_BOOTSTRAP_PASSWORD`** *(optional)* — One-time password used when bootstrapping the very first admin account. Only consulted when no admin user exists yet. If unset, a random password is generated and printed once to the server log. Either way the account is created with `mustResetPassword: true` and must change its password on first login.
