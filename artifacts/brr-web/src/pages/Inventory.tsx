@@ -157,6 +157,7 @@ function SortOption({ field, dir, label, activeSortField, activeSortDir, onSort 
 export default function Inventory() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -184,6 +185,14 @@ export default function Inventory() {
 
   // ---- Active view/tab ----
   const [activeView, setActiveView] = useState<'invoices' | 'mrp' | 'import-sales'>('invoices');
+
+  // Non-admins (employees) cannot see Sales MRP / Sales Records tabs;
+  // coerce them back to Invoices if activeView is ever set to one of those.
+  useEffect(() => {
+    if (!isAdmin && (activeView === 'mrp' || activeView === 'import-sales')) {
+      setActiveView('invoices');
+    }
+  }, [isAdmin, activeView]);
 
   // ---- New UI State ----
   const [searchQuery, setSearchQuery] = useState("");
@@ -896,24 +905,28 @@ export default function Inventory() {
             Invoices
             <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${activeView === 'invoices' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{allOrders?.length ?? 0}</span>
           </button>
-          <button
-            onClick={() => setActiveView('mrp')}
-            data-testid="tab-update-sales-mrp"
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeView === 'mrp' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'}`}
-          >
-            <Tag className="w-3.5 h-3.5" />
-            Sales MRP
-            <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${activeView === 'mrp' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{salesMrpData?.length ?? 0}</span>
-          </button>
-          <button
-            onClick={() => setActiveView('import-sales')}
-            data-testid="tab-sales-records"
-            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeView === 'import-sales' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'}`}
-          >
-            <BarChart2 className="w-3.5 h-3.5" />
-            Sales Records
-            <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${activeView === 'import-sales' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{allSalesData?.length ?? 0}</span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setActiveView('mrp')}
+              data-testid="tab-update-sales-mrp"
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeView === 'mrp' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'}`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              Sales MRP
+              <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${activeView === 'mrp' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{salesMrpData?.length ?? 0}</span>
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setActiveView('import-sales')}
+              data-testid="tab-sales-records"
+              className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${activeView === 'import-sales' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground hover:border-muted-foreground'}`}
+            >
+              <BarChart2 className="w-3.5 h-3.5" />
+              Sales Records
+              <span className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${activeView === 'import-sales' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>{allSalesData?.length ?? 0}</span>
+            </button>
+          )}
         </div>
       </div>
 
