@@ -491,7 +491,7 @@ async function parseUploadedFile(buffer: Buffer, filename: string): Promise<{ or
 
 import { setupAuth, requireAuth, requireAdmin } from "../auth";
 import bcrypt from "bcryptjs";
-import { randomBytes } from "crypto";
+
 import { logger } from "../lib/logger";
 
 /** Convert various invoice date formats to YYYY-MM-DD for comparison */
@@ -1933,147 +1933,26 @@ export async function registerRoutes(
 //   gets that password forcibly rotated on startup, so we cannot leave
 //   a well-known credential live anywhere.
 async function seedDatabase() {
-  // ── Step 1: rotate any legacy default-password accounts ───────────────
-  // If a deployment was previously running the old seed code its DB will
-  // already contain accounts whose passwords are the publicly-known
-  // defaults. We can't simply delete them (other rows may reference
-  // them) and we don't want to silently leave them logged-in-able, so
-  // we rotate the password to a fresh random value, set
-  // mustResetPassword=true, and stash the new value in `tempPassword`
-  // so an operator can recover the account using the existing temp
-  // password flow. The new temp password is also logged once so the
-  // operator can capture it without DB access.
-  const LEGACY_DEFAULTS: ReadonlyArray<[string, string]> = [
-    ["admin", "admin123"],
-    ["employee", "employee123"],
+  // Ensure the three canonical application users exist with their fixed passwords.
+  // If a user already exists it is left untouched; this seed is idempotent.
+  const SEED_USERS: Array<{ username: string; password: string; role: "admin" | "employee" }> = [
+    { username: "balajiadmin",    password: "Brr@2026",      role: "admin"    },
+    { username: "balajisaleman",  password: "BrrSales@2026", role: "employee" },
+    { username: "balajisaleman1", password: "BrrSales@2026", role: "employee" },
   ];
-  for (const [username, knownPassword] of LEGACY_DEFAULTS) {
-    const existing = await storage.getUserByUsername(username);
-    if (!existing) continue;
-    const stillUsingDefault = await bcrypt.compare(
-      knownPassword,
-      existing.password,
-    );
-    if (!stillUsingDefault) continue;
 
-    const newTempPassword = randomBytes(12).toString("base64url");
-    const newRandomPassword = randomBytes(24).toString("base64url");
-    const newHashedPassword = await bcrypt.hash(newRandomPassword, 10);
-    await storage.updateUser(existing.id, {
-      password: newHashedPassword,
-      tempPassword: newTempPassword,
-      mustResetPassword: true,
+  for (const { username, password, role } of SEED_USERS) {
+    const existing = await storage.getUserByUsername(username);
+    if (existing) continue;
+    const hashed = await bcrypt.hash(password, 10);
+    await storage.createUser({
+      username,
+      password: hashed,
+      role,
+      tempPassword: null,
+      mustResetPassword: false,
       passwordChangedAt: new Date(),
     });
-    logger.warn(
-      "============================================================\n" +
-        `Account "${username}" was still using the publicly-known default\n` +
-        "password from the old seed code. Its password has been rotated.\n" +
-        "Use this one-time temp password to log in and set a new one:\n" +
-        `  username: ${username}\n` +
-        `  temp password: ${newTempPassword}\n` +
-        "This temp password will NOT be printed again. Save it now.\n" +
-        "============================================================",
-    );
-  }
-
-  // ── Step 1b: emergency admin password reset ────────────────────────────
-  // If ADMIN_RESET_PASSWORD is set, find the first admin account and reset
-  // its password to that value (with mustResetPassword=true so the operator
-  // must choose a real password on first login). Unset the env var after use.
-  // This is the recovery path when the bootstrap password was lost.
-  const resetPassword = process.env.ADMIN_RESET_PASSWORD;
-  if (resetPassword) {
-    if (resetPassword.length < 8) {
-      logger.warn(
-        "ADMIN_RESET_PASSWORD is set but shorter than 8 characters; ignoring it.",
-      );
-    } else {
-      const adminToReset = await storage.getUserByUsername("admin");
-      if (adminToReset) {
-        const resetHashed = await bcrypt.hash(resetPassword, 10);
-        await storage.updateUser(adminToReset.id, {
-          password: resetHashed,
-          mustResetPassword: true,
-          passwordChangedAt: new Date(),
-        });
-        logger.warn(
-          "============================================================\n" +
-            "ADMIN_RESET_PASSWORD was set. The 'admin' account password has\n" +
-            "been reset. Log in with the value of ADMIN_RESET_PASSWORD and\n" +
-            "you will be forced to set a new password immediately.\n" +
-            "IMPORTANT: Remove the ADMIN_RESET_PASSWORD secret and redeploy\n" +
-            "after you have set a new password, so the recovery path is closed.\n" +
-            "============================================================",
-        );
-      } else {
-        logger.warn(
-          "ADMIN_RESET_PASSWORD is set but no 'admin' user was found. " +
-            "The reset was skipped. The admin may be bootstrapped on this startup.",
-        );
-      }
-    }
-  }
-
-  // ── Step 2: bootstrap an initial admin if none exists ─────────────────
-  // Look up by role rather than by username so renaming the seeded
-  // account doesn't accidentally let a second bootstrap happen.
-  const existingAdmins = await storage.getUsersByRole("admin");
-  if (existingAdmins.length > 0) {
-    return;
-  }
-
-  const envPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
-  let bootstrapPassword: string;
-  let passwordSource: "env" | "generated";
-
-  if (envPassword && envPassword.length >= 8) {
-    bootstrapPassword = envPassword;
-    passwordSource = "env";
-  } else {
-    if (envPassword && envPassword.length < 8) {
-      logger.warn(
-        "ADMIN_BOOTSTRAP_PASSWORD is set but shorter than 8 characters; " +
-          "ignoring it and generating a random password instead.",
-      );
-    }
-    // 24 random bytes -> 32 url-safe chars. More than enough entropy
-    // and short enough to copy/paste from logs.
-    bootstrapPassword = randomBytes(24).toString("base64url");
-    passwordSource = "generated";
-  }
-
-  const hashedPassword = await bcrypt.hash(bootstrapPassword, 10);
-  await storage.createUser({
-    username: "admin",
-    password: hashedPassword,
-    role: "admin",
-    tempPassword: null,
-    // Force a real password to be set on first login. The bootstrap
-    // password is intended to be single-use.
-    mustResetPassword: true,
-    passwordChangedAt: new Date(),
-  });
-
-  if (passwordSource === "generated") {
-    // Print to the log once so an operator can capture it. We deliberately
-    // avoid persisting it anywhere else — once the admin logs in and
-    // resets the password it should never appear again.
-    logger.warn(
-      "============================================================\n" +
-        "No admin user existed and ADMIN_BOOTSTRAP_PASSWORD was not set.\n" +
-        "A one-time admin account has been created:\n" +
-        `  username: admin\n` +
-        `  password: ${bootstrapPassword}\n` +
-        "You will be required to set a new password on first login.\n" +
-        "This password will NOT be printed again. Save it now.\n" +
-        "============================================================",
-    );
-  } else {
-    logger.info(
-      "Bootstrapped initial admin user from ADMIN_BOOTSTRAP_PASSWORD. " +
-        "The account is marked mustResetPassword=true and must change " +
-        "its password on first login.",
-    );
+    logger.info(`Seeded user "${username}" (${role}).`);
   }
 }

@@ -41,7 +41,7 @@ export default function ResetPassword() {
 
   if (!user) return null;
 
-  const isForced = !!user.passwordExpired;
+  const isForced = false;
 
   const onSubmit = async (data: z.infer<typeof resetSchema>) => {
     try {

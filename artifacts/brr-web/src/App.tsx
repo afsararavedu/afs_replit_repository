@@ -24,11 +24,6 @@ function ProtectedRoute({ component: Component, path, role }: { component: React
 
   if (isLoading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
   if (!user) return <Redirect to="/auth" />;
-  // Only force a redirect to the reset-password screen when the password
-  // is older than 90 days (server-computed `passwordExpired` flag). The
-  // legacy `mustResetPassword` flag is no longer auto-routed -- users
-  // can still reach the reset screen on demand via the sidebar button.
-  if (user.passwordExpired && path !== "/reset-password") return <Redirect to="/reset-password" />;
   if (role && user.role !== role) return <Redirect to="/" />;
 
   return <Component />;
@@ -40,11 +35,11 @@ function Router() {
 
   return (
     <div className="flex min-h-screen bg-background font-sans">
-      {user && !user.passwordExpired && (
+      {user && (
         <Sidebar drawerOpen={drawerOpen} onDrawerClose={() => setDrawerOpen(false)} />
       )}
-      <div className={`flex-1 min-w-0 ${user && !user.passwordExpired ? 'md:pl-64' : ''} flex flex-col min-h-screen transition-all`}>
-        {user && !user.passwordExpired && (
+      <div className={`flex-1 min-w-0 ${user ? 'md:pl-64' : ''} flex flex-col min-h-screen transition-all`}>
+        {user && (
           <Header onMenuClick={() => setDrawerOpen(true)} />
         )}
         <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8 overflow-x-hidden">

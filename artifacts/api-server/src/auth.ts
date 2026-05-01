@@ -22,32 +22,15 @@ declare global {
   }
 }
 
-// How old (in days) a password is allowed to be before the frontend
-// forces the user to a /reset-password screen. Below this age, login
-// goes straight to the dashboard with no forced reset.
-const PASSWORD_MAX_AGE_DAYS = 90;
-const PASSWORD_MAX_AGE_MS = PASSWORD_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
-
 /**
  * Build the JSON-safe user payload sent on /api/login, /api/user and
- * /api/register. It strips credential material that the browser never
- * needs to see (the bcrypt password hash and any pending tempPassword)
- * and adds the server-computed `passwordExpired` flag the frontend uses
- * to decide whether to force a redirect to /reset-password.
+ * /api/register. Strips credential material (password hash, tempPassword)
+ * that the browser never needs to see.
  */
 function safeUserResponse(user: SelectUser) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { password, tempPassword, ...rest } = user;
-  let expired = false;
-  if (rest.passwordChangedAt) {
-    const changedAt = rest.passwordChangedAt instanceof Date
-      ? rest.passwordChangedAt
-      : new Date(rest.passwordChangedAt);
-    if (!Number.isNaN(changedAt.getTime())) {
-      expired = Date.now() - changedAt.getTime() > PASSWORD_MAX_AGE_MS;
-    }
-  }
-  return { ...rest, passwordExpired: expired };
+  return rest;
 }
 
 /**
@@ -138,10 +121,6 @@ export function setupAuth(app: Express) {
         
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
-          // Check for temp password
-          if (user.tempPassword && password === user.tempPassword) {
-             return done(null, user);
-          }
           return done(null, false, { message: "Invalid username or password" });
         }
         return done(null, user);
