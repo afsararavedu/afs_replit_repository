@@ -46,6 +46,7 @@ export const requireAdmin: RequestHandler = (req, res, next) => {
 };
 
 export function setupAuth(app: Express) {
+  const isProduction = app.get("env") === "production";
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || "salespro-secret",
     resave: false,
@@ -53,10 +54,13 @@ export function setupAuth(app: Express) {
     store: storage.sessionStore,
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
     },
   };
 
-  if (app.get("env") === "production") {
+  if (isProduction) {
     app.set("trust proxy", 1);
   }
 
