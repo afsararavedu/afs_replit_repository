@@ -151,6 +151,9 @@ export const users = pgTable("users", {
   role: text("role", { enum: ["admin", "employee"] }).notNull().default("employee"),
   tempPassword: text("temp_password"),
   mustResetPassword: boolean("must_reset_password").default(false),
+  // Tracks when the password was last set/changed. Used to enforce the
+  // 90-day password expiry on the frontend (no forced reset before that).
+  passwordChangedAt: timestamp("password_changed_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 });
 

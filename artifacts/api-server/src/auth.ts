@@ -15,6 +15,34 @@ declare global {
   }
 }
 
+// How old (in days) a password is allowed to be before the frontend
+// forces the user to a /reset-password screen. Below this age, login
+// goes straight to the dashboard with no forced reset.
+const PASSWORD_MAX_AGE_DAYS = 90;
+const PASSWORD_MAX_AGE_MS = PASSWORD_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * Build the JSON-safe user payload sent on /api/login, /api/user and
+ * /api/register. It strips credential material that the browser never
+ * needs to see (the bcrypt password hash and any pending tempPassword)
+ * and adds the server-computed `passwordExpired` flag the frontend uses
+ * to decide whether to force a redirect to /reset-password.
+ */
+function safeUserResponse(user: SelectUser) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { password, tempPassword, ...rest } = user;
+  let expired = false;
+  if (rest.passwordChangedAt) {
+    const changedAt = rest.passwordChangedAt instanceof Date
+      ? rest.passwordChangedAt
+      : new Date(rest.passwordChangedAt);
+    if (!Number.isNaN(changedAt.getTime())) {
+      expired = Date.now() - changedAt.getTime() > PASSWORD_MAX_AGE_MS;
+    }
+  }
+  return { ...rest, passwordExpired: expired };
+}
+
 /**
  * Middleware that requires a valid authenticated session.
  * Returns 401 with `{ message: "Unauthorized" }` and does not invoke any
@@ -140,11 +168,12 @@ export function setupAuth(app: Express) {
       const user = await storage.createUser({
         ...req.body,
         password: hashedPassword,
+        passwordChangedAt: new Date(),
       });
 
       req.login(user, (err) => {
         if (err) return next(err);
-        res.status(201).json(user);
+        res.status(201).json(safeUserResponse(user));
       });
     } catch (err) {
       next(err);
@@ -152,7 +181,7 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/login", passport.authenticate("local"), (req, res) => {
-    res.status(200).json(req.user);
+    res.status(200).json(safeUserResponse(req.user as SelectUser));
   });
 
   app.post("/api/logout", (req, res, next) => {
@@ -168,7 +197,7 @@ export function setupAuth(app: Express) {
 
   app.get("/api/user", (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    res.json(req.user);
+    res.json(safeUserResponse(req.user as SelectUser));
   });
   
   // Generate a temporary password for a user. Restricted to authenticated
@@ -231,10 +260,11 @@ export function setupAuth(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const { password } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
-    await storage.updateUser(req.user!.id, { 
-      password: hashedPassword, 
-      tempPassword: null, 
-      mustResetPassword: false 
+    await storage.updateUser(req.user!.id, {
+      password: hashedPassword,
+      tempPassword: null,
+      mustResetPassword: false,
+      passwordChangedAt: new Date(),
     });
     res.sendStatus(200);
   });

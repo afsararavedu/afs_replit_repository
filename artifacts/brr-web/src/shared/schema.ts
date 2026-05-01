@@ -86,10 +86,13 @@ export type DailyStock = {
 export type User = {
   id: number;
   username: string;
-  password: string;
   role: string;
-  tempPassword: string | null;
   mustResetPassword: boolean | null;
+  passwordChangedAt: string | Date | null;
+  // Computed server-side flag: true when passwordChangedAt is older than
+  // PASSWORD_MAX_AGE_DAYS (90). When true, the frontend forces a redirect
+  // to /reset-password.
+  passwordExpired?: boolean;
 };
 export type InsertUser = Omit<User, 'id'>;
 

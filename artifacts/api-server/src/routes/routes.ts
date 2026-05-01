@@ -1963,6 +1963,7 @@ async function seedDatabase() {
       password: newHashedPassword,
       tempPassword: newTempPassword,
       mustResetPassword: true,
+      passwordChangedAt: new Date(),
     });
     logger.warn(
       "============================================================\n" +
@@ -2013,6 +2014,7 @@ async function seedDatabase() {
     // Force a real password to be set on first login. The bootstrap
     // password is intended to be single-use.
     mustResetPassword: true,
+    passwordChangedAt: new Date(),
   });
 
   if (passwordSource === "generated") {

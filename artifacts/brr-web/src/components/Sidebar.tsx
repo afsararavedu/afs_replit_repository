@@ -1,17 +1,18 @@
 import brrLogo from "@assets/brr_solution_logo_1776622112650.jpeg";
 import { Link, useLocation } from "wouter";
-import { 
-  LayoutDashboard, 
-  ShoppingCart, 
-  FileText, 
-  Package, 
-  BarChart3, 
-  CreditCard, 
+import {
+  LayoutDashboard,
+  ShoppingCart,
+  FileText,
+  Package,
+  BarChart3,
+  CreditCard,
   Calendar,
   Receipt,
   LogOut,
   Phone,
   Info,
+  KeyRound,
   X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -97,6 +98,16 @@ export function Sidebar({ drawerOpen = false, onDrawerClose }: SidebarProps) {
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Logged in as</p>
           <p className="text-sm font-medium truncate">{user?.username}</p>
         </div>
+        <Link href="/reset-password">
+          <button
+            onClick={() => onDrawerClose?.()}
+            data-testid="button-reset-password"
+            className="flex items-center gap-3 px-4 py-3 rounded-xl w-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            <KeyRound className="w-5 h-5 flex-shrink-0" />
+            <span className="font-medium text-sm">Reset Password</span>
+          </button>
+        </Link>
         <button
           onClick={() => logoutMutation.mutate()}
           className="flex items-center gap-3 px-4 py-3 rounded-xl w-full text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"

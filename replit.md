@@ -65,6 +65,12 @@ lib/
 - The replit.md mentions `zod/v4` but the workspace actually uses `zod` v3 (`^3.25.76`)
 - The frontend's `@shared/*` alias resolves to `artifacts/brr-web/src/shared/` (local type copies, no backend imports)
 - Session store uses `connect-pg-simple` (PostgreSQL-backed sessions)
+- Password expiry: every user row carries `password_changed_at`. The api
+  exposes a server-computed `passwordExpired` boolean on `/api/login` and
+  `/api/user` responses (true when `password_changed_at` is older than 90
+  days). The frontend forces a redirect to `/reset-password` only when
+  `passwordExpired === true`. Users can also reset their password on
+  demand via the "Reset Password" button in the sidebar.
 - Initial admin bootstrap: on first startup against an empty `users` table the api-server creates a single `admin` account. The password comes from `ADMIN_BOOTSTRAP_PASSWORD` if that env var is set (must be ≥ 8 characters), otherwise a random one is generated and printed once to the server log. The account is created with `mustResetPassword: true`, so the operator is forced to set a real password on first login. No other accounts (including any "employee" account) are seeded — additional users must be created from inside the app by an admin.
 
 ## Required production secrets

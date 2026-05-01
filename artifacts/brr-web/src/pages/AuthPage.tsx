@@ -28,7 +28,11 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (user) {
-      if (user.mustResetPassword) {
+      // After login, only force the reset screen when the password is
+      // older than 90 days (server-computed `passwordExpired`). Otherwise
+      // go straight to the dashboard, even if a temp password was issued
+      // -- the user can change it later from the sidebar button.
+      if (user.passwordExpired) {
         setLocation("/reset-password");
       } else {
         setLocation("/");

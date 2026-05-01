@@ -9,6 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useEffect } from "react";
 
 const resetSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -31,10 +32,16 @@ export default function ResetPassword() {
     },
   });
 
-  if (!user) {
-    setLocation("/auth");
-    return null;
-  }
+  // Use an effect for the redirect -- doing setLocation() during render
+  // causes React's "Cannot update a component while rendering a different
+  // component" warning.
+  useEffect(() => {
+    if (!user) setLocation("/auth");
+  }, [user, setLocation]);
+
+  if (!user) return null;
+
+  const isForced = !!user.passwordExpired;
 
   const onSubmit = async (data: z.infer<typeof resetSchema>) => {
     try {
@@ -52,7 +59,11 @@ export default function ResetPassword() {
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader>
           <CardTitle>Reset Password</CardTitle>
-          <CardDescription>Please set a new secure password for your account</CardDescription>
+          <CardDescription>
+            {isForced
+              ? "Your password is more than 90 days old. Please set a new one to continue."
+              : "Set a new password for your account."}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
