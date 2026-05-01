@@ -951,7 +951,7 @@ export default function Inventory() {
           <div className="bg-card border border-border rounded-xl p-4 flex items-start justify-between shadow-sm">
             <div>
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Stock Value</p>
-              <p className="text-2xl font-bold text-foreground">₹{stats.totalValue >= 1000 ? `${(stats.totalValue / 1000).toFixed(1)}K` : stats.totalValue.toFixed(0)}</p>
+              <p className="text-2xl font-bold text-foreground">₹{Math.round(stats.totalValue).toLocaleString('en-IN')}</p>
             </div>
             <div className="p-2 bg-green-50 rounded-lg"><LayoutGrid className="w-5 h-5 text-green-600" /></div>
           </div>
