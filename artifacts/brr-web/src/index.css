@@ -174,7 +174,7 @@
   }
   
   .table-header {
-    @apply px-2 py-1.5 text-left font-semibold uppercase tracking-wider bg-secondary/50 border-b border-border border-r border-border h-8 align-middle;
+    @apply px-2 py-1.5 text-left font-semibold uppercase tracking-wider bg-secondary border-b border-border border-r border-border h-8 align-middle;
     font-size: var(--text-table-header);
     line-height: var(--lh-table);
     color: var(--color-text-muted);
