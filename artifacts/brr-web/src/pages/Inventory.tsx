@@ -1208,45 +1208,49 @@ export default function Inventory() {
               </PopoverContent>
             </Popover>
 
-            {/* Import */}
-            <div className="flex items-stretch">
-              <Button
-                size="sm"
-                className="rounded-r-none gap-1.5 border-r-0"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploading || isCheckingDuplicate}
-                data-testid="button-import-upload"
-              >
-                {isUploading || isCheckingDuplicate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
-                Import
-              </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button size="sm" className="rounded-l-none px-2" data-testid="button-import-dropdown">
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()} data-testid="menu-import-excel">
-                    <FileSpreadsheet className="w-4 h-4 mr-2" /> Import from Excel / CSV
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild data-testid="menu-download-template">
-                    <a href="/api/template/download?format=xlsx" download="Invoice_Template.xlsx">
-                      <Download className="w-4 h-4 mr-2" /> Download sample template
-                    </a>
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleExportOrders} disabled={displayOrders.length === 0} data-testid="menu-export-view">
-                    <Download className="w-4 h-4 mr-2" /> Export current view ({displayOrders.length})
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            {/* Import — admin only */}
+            {isAdmin && (
+              <div className="flex items-stretch">
+                <Button
+                  size="sm"
+                  className="rounded-r-none gap-1.5 border-r-0"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading || isCheckingDuplicate}
+                  data-testid="button-import-upload"
+                >
+                  {isUploading || isCheckingDuplicate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
+                  Import
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" className="rounded-l-none px-2" data-testid="button-import-dropdown">
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => fileInputRef.current?.click()} data-testid="menu-import-excel">
+                      <FileSpreadsheet className="w-4 h-4 mr-2" /> Import from Excel / CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem asChild data-testid="menu-download-template">
+                      <a href="/api/template/download?format=xlsx" download="Invoice_Template.xlsx">
+                        <Download className="w-4 h-4 mr-2" /> Download sample template
+                      </a>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleExportOrders} disabled={displayOrders.length === 0} data-testid="menu-export-view">
+                      <Download className="w-4 h-4 mr-2" /> Export current view ({displayOrders.length})
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
 
-            {/* Add Entry */}
-            <Button size="sm" className="gap-1.5" onClick={() => setShowManualEntryDialog(true)} data-testid="button-add-entry">
-              <Plus className="w-3.5 h-3.5" /> Add Entry
-            </Button>
+            {/* Add Entry — admin only */}
+            {isAdmin && (
+              <Button size="sm" className="gap-1.5" onClick={() => setShowManualEntryDialog(true)} data-testid="button-add-entry">
+                <Plus className="w-3.5 h-3.5" /> Add Entry
+              </Button>
+            )}
 
             {/* More options (Settings) */}
             <DropdownMenu>
@@ -1340,7 +1344,7 @@ export default function Inventory() {
                       </button>
                     </th>
                     <th className="table-header w-20 text-right uppercase text-[10px] tracking-wider">Rate/Btl</th>
-                    <th className="table-header w-20 text-center uppercase text-[10px] tracking-wider">Actions</th>
+                    {isAdmin && <th className="table-header w-20 text-center uppercase text-[10px] tracking-wider">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1388,25 +1392,27 @@ export default function Inventory() {
                         <td className="table-cell text-right font-mono text-sm text-muted-foreground">
                           {isEditing ? <input className="input-field w-20 text-xs text-right" value={editOrderData.unitRatePerBottle ?? ""} onChange={e => handleOrderEditField("unitRatePerBottle", e.target.value)} /> : fmt2(order.unitRatePerBottle)}
                         </td>
-                        <td className="table-cell text-center">
-                          {isEditing ? (
-                            <div className="flex items-center justify-center gap-1">
-                              <button onClick={handleOrderEditSave} className="p-1 rounded text-green-600 hover:bg-green-100" title="Save" data-testid={`btn-save-order-edit-${order.id}`}><Check className="w-4 h-4" /></button>
-                              <button onClick={handleOrderEditCancel} className="p-1 rounded text-muted-foreground hover:bg-muted" title="Cancel" data-testid={`btn-cancel-order-edit-${order.id}`}><X className="w-4 h-4" /></button>
-                            </div>
-                          ) : isDeleteConfirm ? (
-                            <div className="flex items-center justify-center gap-1">
-                              <span className="text-xs text-red-600 font-medium mr-1">Sure?</span>
-                              <button onClick={() => handleOrderDeleteConfirm(order.id)} className="p-1 rounded text-red-600 hover:bg-red-100" data-testid={`btn-confirm-delete-order-${order.id}`}><Check className="w-4 h-4" /></button>
-                              <button onClick={() => setDeleteConfirmOrderId(null)} className="p-1 rounded text-muted-foreground hover:bg-muted" data-testid={`btn-cancel-delete-order-${order.id}`}><X className="w-4 h-4" /></button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-center gap-1">
-                              <button onClick={() => handleOrderEditStart(order)} className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10" title="Edit" data-testid={`btn-edit-order-${order.id}`}><Pencil className="w-3.5 h-3.5" /></button>
-                              <button onClick={() => setDeleteConfirmOrderId(order.id)} className="p-1 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50" title="Delete" data-testid={`btn-delete-order-${order.id}`}><Trash2 className="w-3.5 h-3.5" /></button>
-                            </div>
-                          )}
-                        </td>
+                        {isAdmin && (
+                          <td className="table-cell text-center">
+                            {isEditing ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <button onClick={handleOrderEditSave} className="p-1 rounded text-green-600 hover:bg-green-100" title="Save" data-testid={`btn-save-order-edit-${order.id}`}><Check className="w-4 h-4" /></button>
+                                <button onClick={handleOrderEditCancel} className="p-1 rounded text-muted-foreground hover:bg-muted" title="Cancel" data-testid={`btn-cancel-order-edit-${order.id}`}><X className="w-4 h-4" /></button>
+                              </div>
+                            ) : isDeleteConfirm ? (
+                              <div className="flex items-center justify-center gap-1">
+                                <span className="text-xs text-red-600 font-medium mr-1">Sure?</span>
+                                <button onClick={() => handleOrderDeleteConfirm(order.id)} className="p-1 rounded text-red-600 hover:bg-red-100" data-testid={`btn-confirm-delete-order-${order.id}`}><Check className="w-4 h-4" /></button>
+                                <button onClick={() => setDeleteConfirmOrderId(null)} className="p-1 rounded text-muted-foreground hover:bg-muted" data-testid={`btn-cancel-delete-order-${order.id}`}><X className="w-4 h-4" /></button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-center gap-1">
+                                <button onClick={() => handleOrderEditStart(order)} className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10" title="Edit" data-testid={`btn-edit-order-${order.id}`}><Pencil className="w-3.5 h-3.5" /></button>
+                                <button onClick={() => setDeleteConfirmOrderId(order.id)} className="p-1 rounded text-muted-foreground hover:text-red-600 hover:bg-red-50" title="Delete" data-testid={`btn-delete-order-${order.id}`}><Trash2 className="w-3.5 h-3.5" /></button>
+                              </div>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -1434,7 +1440,7 @@ export default function Inventory() {
             </p>
             {hasActiveFilters || searchQuery ? (
               <Button variant="outline" onClick={() => { clearAllFilters(); setSearchQuery(""); }}>Clear filters</Button>
-            ) : (
+            ) : isAdmin ? (
               <div className="flex gap-3">
                 <Button onClick={() => fileInputRef.current?.click()} className="gap-2" data-testid="button-empty-import">
                   <UploadCloud className="w-4 h-4" /> Import ICDC file
@@ -1443,7 +1449,7 @@ export default function Inventory() {
                   <Plus className="w-4 h-4" /> Add manually
                 </Button>
               </div>
-            )}
+            ) : null}
           </div>
         )}
 
