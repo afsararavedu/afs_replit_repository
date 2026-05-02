@@ -38,13 +38,14 @@ export default function Stock() {
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const isToday = stockViewDate === getTodayLocal();
 
-  // Earliest invoice date from orders — used as calendar floor (oldest selectable date)
-  const { data: earliestOrderDateData } = useQuery<{ invoiceDate: string | null }>({
-    queryKey: ["/api/orders/earliest-invoice-date"],
+  // Latest invoice date from orders — used as calendar floor (most recent delivery)
+  const { data: latestOrderDateData } = useQuery<{ invoiceDate: string | null }>({
+    queryKey: ["/api/orders/latest-invoice-date"],
   });
-  const earliestOrderDate = earliestOrderDateData?.invoiceDate
-    ? parse(earliestOrderDateData.invoiceDate, "yyyy-MM-dd", new Date())
-    : new Date("2020-01-01");
+  const latestOrderDate = latestOrderDateData?.invoiceDate
+    ? parse(latestOrderDateData.invoiceDate, "yyyy-MM-dd", new Date())
+    : new Date();
+  const latestOrderDateStr = latestOrderDateData?.invoiceDate ?? format(new Date(), "yyyy-MM-dd");
 
   // All dates that have a saved stock snapshot — used to grey-out empty dates in the calendar
   const { data: availableStockDatesData } = useQuery<{ dates: string[] }>({
@@ -181,19 +182,15 @@ export default function Stock() {
                       setCurrentPage(1);
                     }
                   }}
-                  fromDate={earliestOrderDate}
+                  fromDate={latestOrderDate}
                   toDate={new Date()}
                   disabled={(date) => {
                     const dateStr = format(date, "yyyy-MM-dd");
                     const todayStr = getTodayLocal();
-                    // Always allow today (current stock view)
-                    if (dateStr === todayStr) return false;
                     // Block future dates
                     if (dateStr > todayStr) return true;
-                    // Only enable past dates that have a saved stock snapshot
-                    if (availableStockDateSet.size > 0) {
-                      return !availableStockDateSet.has(dateStr);
-                    }
+                    // Block dates before the latest order invoice date
+                    if (dateStr < latestOrderDateStr) return true;
                     return false;
                   }}
                   initialFocus
