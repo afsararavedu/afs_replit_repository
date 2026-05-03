@@ -1219,7 +1219,7 @@ export default function Inventory() {
                   data-testid="button-import-upload"
                 >
                   {isUploading || isCheckingDuplicate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UploadCloud className="w-3.5 h-3.5" />}
-                  Import
+                  PDF Import
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
