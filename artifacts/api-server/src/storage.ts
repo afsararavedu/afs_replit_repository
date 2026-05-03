@@ -419,58 +419,29 @@ export class DatabaseStorage implements IStorage {
   async getLatestOrderInvoiceDate(): Promise<string | null> {
     const cached = _getCache<string | null>('latestInvoiceDate');
     if (cached !== undefined) return cached;
-    // normalizeInvoiceDate helper (same as in routes.ts) to convert "31-Mar-2026" → "2026-03-31"
+    // invoice_date is now a proper date column — ORDER BY gives correct calendar order
     const result = await db
       .select({ invoiceDate: orders.invoiceDate })
       .from(orders)
-      .where(sql`${orders.invoiceDate} IS NOT NULL AND ${orders.invoiceDate} != ''`)
-      .orderBy(desc(orders.id))
-      .limit(100);
-    if (result.length === 0) return _setCache('latestInvoiceDate', null, 600_000);
-    const MONTHS: Record<string, string> = {
-      jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",
-      jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12",
-    };
-    const normalize = (d: string): string | null => {
-      if (!d) return null;
-      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-      const m1 = d.match(/^(\d{1,2})-([A-Za-z]+)-(\d{4})$/);
-      if (m1) { const mn = MONTHS[m1[2].toLowerCase()]; if (mn) return `${m1[3]}-${mn}-${m1[1].padStart(2,"0")}`; }
-      const m2 = d.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-      if (m2) return `${m2[3]}-${m2[2].padStart(2,"0")}-${m2[1].padStart(2,"0")}`;
-      return null;
-    };
-    const dates = result.map(r => normalize(r.invoiceDate || "")).filter(Boolean) as string[];
-    const best = dates.length === 0 ? null : dates.sort().reverse()[0];
-    return _setCache('latestInvoiceDate', best, 600_000); // 10 min TTL — changes only when new orders arrive
+      .where(sql`${orders.invoiceDate} IS NOT NULL`)
+      .orderBy(desc(orders.invoiceDate))
+      .limit(1);
+    const date = result[0]?.invoiceDate ?? null;
+    return _setCache('latestInvoiceDate', date, 600_000);
   }
 
   async getEarliestOrderInvoiceDate(): Promise<string | null> {
     const cached = _getCache<string | null>('earliestInvoiceDate');
     if (cached !== undefined) return cached;
+    // invoice_date is now a proper date column — ORDER BY gives correct calendar order
     const result = await db
       .select({ invoiceDate: orders.invoiceDate })
       .from(orders)
-      .where(sql`${orders.invoiceDate} IS NOT NULL AND ${orders.invoiceDate} != ''`)
-      .orderBy(asc(orders.id))
-      .limit(100);
-    if (result.length === 0) return _setCache('earliestInvoiceDate', null, 600_000);
-    const MONTHS: Record<string, string> = {
-      jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",
-      jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12",
-    };
-    const normalize = (d: string): string | null => {
-      if (!d) return null;
-      if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-      const m1 = d.match(/^(\d{1,2})-([A-Za-z]+)-(\d{4})$/);
-      if (m1) { const mn = MONTHS[m1[2].toLowerCase()]; if (mn) return `${m1[3]}-${mn}-${m1[1].padStart(2,"0")}`; }
-      const m2 = d.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
-      if (m2) return `${m2[3]}-${m2[2].padStart(2,"0")}-${m2[1].padStart(2,"0")}`;
-      return null;
-    };
-    const dates = result.map(r => normalize(r.invoiceDate || "")).filter(Boolean) as string[];
-    const best = dates.length === 0 ? null : dates.sort()[0];
-    return _setCache('earliestInvoiceDate', best, 600_000); // 10 min TTL
+      .where(sql`${orders.invoiceDate} IS NOT NULL`)
+      .orderBy(asc(orders.invoiceDate))
+      .limit(1);
+    const date = result[0]?.invoiceDate ?? null;
+    return _setCache('earliestInvoiceDate', date, 600_000);
   }
 
   async bulkCreateOrders(ordersData: InsertOrder[]): Promise<Order[]> {

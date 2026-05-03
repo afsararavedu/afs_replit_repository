@@ -256,7 +256,7 @@ async function parsePdfInvoice(
   for (const line of lines) {
     const dateMatch = line.match(/Invoice\s*Date\s*:\s*(.+?)(?:\s{2,}|$)/i);
     if (dateMatch && !invoiceDate) {
-      invoiceDate = dateMatch[1].trim();
+      invoiceDate = normalizeInvoiceDate(dateMatch[1].trim()) ?? dateMatch[1].trim();
     }
     const icdcMatch = line.match(/ICDC\s*Number\s*[:\s]\s*(ICDC\S+)/i);
     if (icdcMatch && !icdcNumber) {
@@ -1376,7 +1376,12 @@ export async function registerRoutes(
   app.post(api.orders.bulkCreate.path, requireAdmin, async (req, res) => {
     try {
       const input = api.orders.bulkCreate.input.parse(req.body);
-      const result = await storage.bulkCreateOrders(input);
+      // Normalize invoiceDate to ISO YYYY-MM-DD before storing (date column requires it)
+      const normalized = input.map(order => ({
+        ...order,
+        invoiceDate: order.invoiceDate ? (normalizeInvoiceDate(order.invoiceDate) ?? null) : null,
+      }));
+      const result = await storage.bulkCreateOrders(normalized);
       // Orders are stored only — stock is updated exclusively from "Save Sales"
       res.status(201).json(result);
     } catch (err) {

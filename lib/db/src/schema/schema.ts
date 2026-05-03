@@ -50,7 +50,7 @@ export const orders = pgTable("orders", {
   breakageBottleQty: integer("breakage_bottle_qty").default(0),
   totalBottles: integer("total_bottles").default(0),
   remarks: text("remarks"),
-  invoiceDate: text("invoice_date"),
+  invoiceDate: date("invoice_date"),
   icdcNumber: text("icdc_number"),
   dataUpdated: text("data_updated").default("NO").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
