@@ -269,28 +269,54 @@ async function parsePdfInvoice(
       }
     }
 
-    const licMatch = line.match(/License\s*No\s*[:.]\s*(.+)/i);
+    // ----- Tabular header row: "Retailer Name: M/s Foo Code: 2501550" -----
+    // Extract Name (shop name) — stop at "Code"/"Address"/"License"/double-space/EOL
+    if (!shopName) {
+      const nameMatch = line.match(
+        /(?:^|\b)Name\s*[:.]\s*(.+?)(?=\s+(?:Code|Address|License|Retail\s*Shop|PAN|Phone|Mobile|Contact|Gazette|ICDC)\s*[:.]|\s{2,}|$)/i,
+      );
+      // Avoid matching "Name & Phone:" or "Name, Phone:" header fields
+      if (nameMatch && !line.match(/Name\s*[&,/]\s*(?:Phone|Mobile|Contact)/i)) {
+        const candidate = nameMatch[1].trim();
+        if (candidate && candidate.length >= 2) shopName = candidate;
+      }
+    }
+
+    // Address — stop at "Retail Shop Excise Tax"/"Code"/etc
+    if (!shopAddress) {
+      const addrMatch = line.match(
+        /(?:^|\b)Address\s*[:.]\s*(.+?)(?=\s+(?:Retail\s*Shop|Code|License|PAN|Phone|Mobile|Gazette|ICDC|Name)\s*[:.]|\s{2,}|$)/i,
+      );
+      if (addrMatch) {
+        const candidate = addrMatch[1].trim();
+        if (candidate && candidate.length >= 2) shopAddress = candidate;
+      }
+    }
+
+    const licMatch = line.match(/License\s*No\s*[:.]\s*(.+?)(?=\s+(?:PAN|Code|Retail|Name|Phone|Gazette|ICDC)\s*[:.]|\s{2,}|$)/i);
     if (licMatch && !licenseNo) {
       licenseNo = licMatch[1].trim();
     }
 
-    const panMatch = line.match(/PAN\s*(Number|No)?\s*[:.]\s*(.+)/i);
+    const panMatch = line.match(/PAN\s*(?:Number|No)?\s*[:.]\s*(.+?)(?=\s+(?:License|Code|Retail|Name|Phone|Gazette|ICDC)\s*[:.]|\s{2,}|$)/i);
     if (panMatch && !panNumber) {
-      panNumber = panMatch[2].trim();
+      panNumber = panMatch[1].trim();
     }
 
-    const exciseMatch = line.match(/Retail\s*Shop\s*Excise\s*Tax\s*[:.]\s*(.+)/i);
+    const exciseMatch = line.match(/Retail\s*Shop\s*Excise\s*Tax\s*[:.]\s*(.+?)(?=\s+(?:License|Code|PAN|Name|Phone|Gazette|ICDC|Address)\s*[:.]|\s{2,}|$)/i);
     if (exciseMatch && !retailShopExciseTax) {
       retailShopExciseTax = exciseMatch[1].trim();
     }
 
+    // Legacy fallback: "Address ... Retail Shop Excise Tax: ..." with no "Address:" label
     if (!retailShopExciseTax && line.match(/Retail\s*Shop\s*Excise\s*Tax/i)) {
       const addressLine = line.trim();
       const exciseParts = addressLine.split(/Retail\s*Shop\s*Excise\s*Tax\s*/i);
       if (exciseParts.length > 1) {
         retailShopExciseTax = exciseParts[1].replace(/^[:.]\s*/, "").trim();
-        if (exciseParts[0]) {
-          shopAddress = exciseParts[0].trim();
+        if (!shopAddress && exciseParts[0]) {
+          // strip leading row labels like "Retailer" if present
+          shopAddress = exciseParts[0].replace(/^(Retailer|Licensee)\s+/i, "").trim();
         }
       }
     }
@@ -312,16 +338,17 @@ async function parsePdfInvoice(
     }
   }
 
+  // Last-resort fallback if explicit "Name:" wasn't found anywhere in the PDF
   if (lines.length > 0 && !shopName) {
-    for (let idx = 0; idx < Math.min(5, lines.length); idx++) {
+    for (let idx = 0; idx < Math.min(8, lines.length); idx++) {
       const l = lines[idx];
-      if (l.match(/^(Duplicate|Original|Tax\s*Invoice|Invoice\s*No|Sl\.?\s*No|ICDC|Invoice\s*Date)/i)) continue;
-      if (l.match(/License\s*No|PAN|Gazette|Retail\s*Shop/i)) continue;
+      if (l.match(/^(Duplicate|Original|Tax\s*Invoice|Invoice\s*No|Sl\.?\s*No|ICDC|Invoice\s*Date|Retailer|Licensee)/i)) continue;
+      if (l.match(/License\s*No|PAN|Gazette|Retail\s*Shop|Code\s*[:.]/i)) continue;
       if (!shopName) {
         shopName = l;
         continue;
       }
-      if (!shopAddress && !l.match(/License\s*No|PAN|Gazette|Retail\s*Shop|Invoice/i)) {
+      if (!shopAddress && !l.match(/License\s*No|PAN|Gazette|Retail\s*Shop|Invoice|Code\s*[:.]/i)) {
         shopAddress = l;
         break;
       }
