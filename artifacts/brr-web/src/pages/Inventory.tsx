@@ -47,6 +47,7 @@ import {
   Upload,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -123,6 +124,56 @@ function parseDateStr(s: string | null | undefined): Date | null {
   if (!s) return null;
   const d = parse(s, "d-MMM-yyyy", new Date());
   return isValid(d) ? d : null;
+}
+
+/** Reusable date picker input — displays dd-MM-yyyy, stores yyyy-MM-dd. */
+function DatePickerInput({ value, onChange, className, placeholder, testId }: {
+  value: string | null | undefined;
+  onChange: (val: string) => void;
+  className?: string;
+  placeholder?: string;
+  testId?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const parsed = value && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? parse(value, "yyyy-MM-dd", new Date())
+    : undefined;
+  const display = value ? formatDMY(value) : "";
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          data-testid={testId}
+          className={cn(
+            "flex items-center gap-1.5 px-2 py-1 border border-input rounded bg-background hover:bg-muted text-left text-xs font-mono",
+            className,
+          )}
+        >
+          <CalendarIcon className="w-3 h-3 text-muted-foreground shrink-0" />
+          <span className={display ? "" : "text-muted-foreground"}>
+            {display || placeholder || "Pick date"}
+          </span>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={parsed}
+          defaultMonth={parsed}
+          onSelect={(date) => {
+            if (date) {
+              const y = date.getFullYear();
+              const m = String(date.getMonth() + 1).padStart(2, "0");
+              const d = String(date.getDate()).padStart(2, "0");
+              onChange(`${y}-${m}-${d}`);
+              setOpen(false);
+            }
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 /** Convert YYYY-MM-DD (HTML date input) → DD-Mon-YYYY (PDF-parsed format, e.g. 05-Feb-2026) */
@@ -1129,22 +1180,22 @@ export default function Inventory() {
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground">From</label>
-                    <input
-                      type="date"
-                      className="mt-1 block w-full border border-border rounded-lg px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    <DatePickerInput
+                      className="mt-1 w-full px-2 py-1.5 text-sm rounded-lg"
                       value={pendingFromDate ? format(pendingFromDate, "yyyy-MM-dd") : ""}
-                      onChange={e => { setPendingFromDate(e.target.value ? new Date(e.target.value) : null); setPendingQuick(""); }}
-                      data-testid="input-filter-from-date"
+                      onChange={(val) => { setPendingFromDate(val ? parse(val, "yyyy-MM-dd", new Date()) : null); setPendingQuick(""); }}
+                      placeholder="From date"
+                      testId="input-filter-from-date"
                     />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground">To</label>
-                    <input
-                      type="date"
-                      className="mt-1 block w-full border border-border rounded-lg px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    <DatePickerInput
+                      className="mt-1 w-full px-2 py-1.5 text-sm rounded-lg"
                       value={pendingToDate ? format(pendingToDate, "yyyy-MM-dd") : ""}
-                      onChange={e => { setPendingToDate(e.target.value ? new Date(e.target.value) : null); setPendingQuick(""); }}
-                      data-testid="input-filter-to-date"
+                      onChange={(val) => { setPendingToDate(val ? parse(val, "yyyy-MM-dd", new Date()) : null); setPendingQuick(""); }}
+                      placeholder="To date"
+                      testId="input-filter-to-date"
                     />
                   </div>
                 </div>
@@ -1361,7 +1412,7 @@ export default function Inventory() {
                       >
                         <td className="table-cell text-muted-foreground text-center text-xs">{globalIdx + 1}</td>
                         <td className="table-cell text-sm">
-                          {isEditing ? <input className="input-field w-24 text-xs" value={editOrderData.invoiceDate ?? ""} onChange={e => handleOrderEditField("invoiceDate", e.target.value)} /> : (formatDMY(order.invoiceDate) || "-")}
+                          {isEditing ? <DatePickerInput className="w-32" value={editOrderData.invoiceDate ?? ""} onChange={(val) => handleOrderEditField("invoiceDate", val)} /> : (formatDMY(order.invoiceDate) || "-")}
                         </td>
                         <td className="table-cell text-xs font-mono">
                           {isEditing ? <input className="input-field w-36 text-xs" value={editOrderData.icdcNumber ?? ""} onChange={e => handleOrderEditField("icdcNumber", e.target.value)} /> :
@@ -2264,7 +2315,7 @@ export default function Inventory() {
                   return (
                     <tr key={gi} className="hover:bg-muted/30 transition-colors">
                       <td className="table-cell text-center text-muted-foreground">{gi + 1}</td>
-                      <td className="p-2 border-b border-border"><input type="date" className="input-field font-mono text-sm" value={row.invoiceDate || ""} onChange={e => handleRowChange(idx, "invoiceDate", e.target.value)} /></td>
+                      <td className="p-2 border-b border-border"><DatePickerInput className="w-full text-sm" value={row.invoiceDate || ""} onChange={(val) => handleRowChange(idx, "invoiceDate", val)} /></td>
                       <td className="p-2 border-b border-border"><input className="input-field font-mono text-sm" placeholder="e.g. ICDC019..." value={row.icdcNumber || ""} onChange={e => handleRowChange(idx, "icdcNumber", e.target.value)} /></td>
                       <td className="p-2 border-b border-border"><input className="input-field" placeholder="Ex: 3066" value={row.brandNumber} onChange={e => handleRowChange(idx, "brandNumber", e.target.value)} /></td>
                       <td className="p-2 border-b border-border"><input className="input-field" placeholder="Brand Name" value={row.brandName} onChange={e => handleRowChange(idx, "brandName", e.target.value)} /></td>
