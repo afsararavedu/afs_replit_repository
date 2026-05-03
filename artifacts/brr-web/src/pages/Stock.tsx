@@ -163,7 +163,7 @@ export default function Stock() {
                   className="flex items-center gap-2 px-3 py-2 border border-input rounded-xl bg-background hover:bg-muted transition-all text-sm font-medium"
                 >
                   <CalendarIcon className="w-4 h-4 text-muted-foreground" />
-                  {isToday ? "Today (Current Stock)" : format(parse(stockViewDate, "yyyy-MM-dd", new Date()), "dd-MMM-yyyy")}
+                  {isToday ? "Today (Current Stock)" : format(parse(stockViewDate, "yyyy-MM-dd", new Date()), "dd-MM-yyyy")}
                 </button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -252,7 +252,7 @@ export default function Stock() {
                   <td colSpan={12} className="text-center py-12 text-muted-foreground">
                     {isToday
                       ? "No stock data available. Sync from orders to populate."
-                      : `No stock snapshot found for ${format(parse(stockViewDate, "yyyy-MM-dd", new Date()), "dd-MMM-yyyy")}. Save sales for that date to create a snapshot.`}
+                      : `No stock snapshot found for ${format(parse(stockViewDate, "yyyy-MM-dd", new Date()), "dd-MM-yyyy")}. Save sales for that date to create a snapshot.`}
                   </td>
                 </tr>
               ) : paginatedStock.map((item, idx) => {

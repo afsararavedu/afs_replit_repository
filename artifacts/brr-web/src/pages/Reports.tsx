@@ -87,7 +87,7 @@ const fmtDate = (d: string | null | undefined) => {
     // Parse as local midnight — parseISO/new Date("YYYY-MM-DD") use UTC which
     // shifts the displayed date by -1 day for users behind UTC (e.g. US timezones).
     const [y, mo, da] = d.substring(0, 10).split("-").map(Number);
-    return format(new Date(y, mo - 1, da), "dd-MMM-yyyy");
+    return format(new Date(y, mo - 1, da), "dd-MM-yyyy");
   } catch { return d; }
 };
 

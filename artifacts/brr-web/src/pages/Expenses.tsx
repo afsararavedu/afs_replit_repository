@@ -231,7 +231,7 @@ export default function Expenses() {
             <PopoverTrigger asChild>
               <Button variant="outline" className="min-w-[160px] justify-start gap-2" data-testid="button-date-picker">
                 <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                {format(parseDateLocal(selectedDate), "dd MMM yyyy")}
+                {format(parseDateLocal(selectedDate), "dd-MM-yyyy")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0" align="end">

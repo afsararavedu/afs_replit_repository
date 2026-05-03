@@ -974,7 +974,7 @@ export default function Sales() {
                 <CalendarIcon className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Select Date:</span>
                 <span className="text-sm font-semibold text-foreground">
-                  {format(parse(selectedDate, "yyyy-MM-dd", new Date()), "MM/dd/yyyy")}
+                  {format(parse(selectedDate, "yyyy-MM-dd", new Date()), "dd-MM-yyyy")}
                 </span>
               </button>
             </PopoverTrigger>
@@ -1460,7 +1460,7 @@ export default function Sales() {
                     >
                       <CalendarIcon className="w-4 h-4 text-muted-foreground" />
                       <span className="text-sm font-semibold text-foreground">
-                        {format(parse(exportFromDate, "yyyy-MM-dd", new Date()), "MM/dd/yyyy")}
+                        {format(parse(exportFromDate, "yyyy-MM-dd", new Date()), "dd-MM-yyyy")}
                       </span>
                     </button>
                   </PopoverTrigger>
@@ -1503,7 +1503,7 @@ export default function Sales() {
                     >
                       <CalendarIcon className="w-4 h-4 text-muted-foreground" />
                       <span className="text-sm font-semibold text-foreground">
-                        {format(parse(exportToDate, "yyyy-MM-dd", new Date()), "MM/dd/yyyy")}
+                        {format(parse(exportToDate, "yyyy-MM-dd", new Date()), "dd-MM-yyyy")}
                       </span>
                     </button>
                   </PopoverTrigger>

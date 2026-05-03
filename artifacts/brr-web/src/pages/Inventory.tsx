@@ -65,7 +65,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { type InsertOrder, type Order, type ShopDetail, type SalesMrpDetail, type DailySale } from "@shared/schema";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { cn } from "@/lib/utils";
+import { cn, formatDMY } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
 import { PaginationCustom } from "@/components/ui/pagination-custom";
@@ -1281,8 +1281,8 @@ export default function Inventory() {
         {hasActiveFilters && (
           <div className="flex flex-wrap items-center gap-2 px-4 py-2 border-b border-border bg-muted/30">
             <span className="text-xs text-muted-foreground">Active:</span>
-            {filterFromDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">From: {format(filterFromDate, "d MMM yyyy")}<button onClick={() => { setFilterFromDate(null); setQuickRange(""); }}><X className="w-3 h-3" /></button></span>}
-            {filterToDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">To: {format(filterToDate, "d MMM yyyy")}<button onClick={() => { setFilterToDate(null); setQuickRange(""); }}><X className="w-3 h-3" /></button></span>}
+            {filterFromDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">From: {format(filterFromDate, "dd-MM-yyyy")}<button onClick={() => { setFilterFromDate(null); setQuickRange(""); }}><X className="w-3 h-3" /></button></span>}
+            {filterToDate && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">To: {format(filterToDate, "dd-MM-yyyy")}<button onClick={() => { setFilterToDate(null); setQuickRange(""); }}><X className="w-3 h-3" /></button></span>}
             {filterIcdcNumber && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">ICDC: {filterIcdcNumber}<button onClick={() => setFilterIcdcNumber("")}><X className="w-3 h-3" /></button></span>}
             {filterBrandNumber && <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">Brand: {filterBrandNumber}<button onClick={() => setFilterBrandNumber("")}><X className="w-3 h-3" /></button></span>}
             <button onClick={clearAllFilters} className="text-xs text-muted-foreground hover:text-destructive underline ml-auto">Clear all</button>
@@ -1361,7 +1361,7 @@ export default function Inventory() {
                       >
                         <td className="table-cell text-muted-foreground text-center text-xs">{globalIdx + 1}</td>
                         <td className="table-cell text-sm">
-                          {isEditing ? <input className="input-field w-24 text-xs" value={editOrderData.invoiceDate ?? ""} onChange={e => handleOrderEditField("invoiceDate", e.target.value)} /> : (order.invoiceDate || "-")}
+                          {isEditing ? <input className="input-field w-24 text-xs" value={editOrderData.invoiceDate ?? ""} onChange={e => handleOrderEditField("invoiceDate", e.target.value)} /> : (formatDMY(order.invoiceDate) || "-")}
                         </td>
                         <td className="table-cell text-xs font-mono">
                           {isEditing ? <input className="input-field w-36 text-xs" value={editOrderData.icdcNumber ?? ""} onChange={e => handleOrderEditField("icdcNumber", e.target.value)} /> :
@@ -2308,7 +2308,7 @@ export default function Inventory() {
             <DialogDescription><span className="font-medium">{previewFilename}</span> — {previewOrders.length} order(s) extracted. Review and confirm to save.</DialogDescription>
             {(previewOrders[0]?.invoiceDate || previewOrders[0]?.icdcNumber) && (
               <div className="flex flex-wrap gap-4 mt-2 text-sm">
-                {previewOrders[0]?.invoiceDate && <span className="px-3 py-1 bg-muted rounded-md" data-testid="text-preview-invoice-date"><span className="text-muted-foreground">Invoice Date:</span> <span className="font-semibold">{previewOrders[0].invoiceDate}</span></span>}
+                {previewOrders[0]?.invoiceDate && <span className="px-3 py-1 bg-muted rounded-md" data-testid="text-preview-invoice-date"><span className="text-muted-foreground">Invoice Date:</span> <span className="font-semibold">{formatDMY(previewOrders[0].invoiceDate)}</span></span>}
                 {previewOrders[0]?.icdcNumber && <span className="px-3 py-1 bg-muted rounded-md" data-testid="text-preview-icdc-number"><span className="text-muted-foreground">ICDC:</span> <span className="font-semibold">{previewOrders[0].icdcNumber}</span></span>}
               </div>
             )}
