@@ -1141,10 +1141,8 @@ export default function Inventory() {
                 data-testid="input-search-orders"
                 className="pl-8 pr-8 py-1.5 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/30 w-48 sm:w-64"
               />
-              {searchQuery ? (
+              {searchQuery && (
                 <button onClick={() => setSearchQuery("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
-              ) : (
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground bg-muted rounded px-1 py-0.5 font-mono">⌘K</span>
               )}
             </div>
 
