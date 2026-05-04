@@ -1486,7 +1486,8 @@ export async function registerRoutes(
 
   app.get("/api/sales/earliest-invoice-date", async (_req, res) => {
     try {
-      const date = await storage.getEarliestInvoiceDate();
+      const raw = await storage.getEarliestInvoiceDate();
+      const date = raw instanceof Date ? raw.toISOString().split("T")[0] : raw;
       res.json({ invoiceDate: date });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch earliest invoice date" });
@@ -1506,7 +1507,8 @@ export async function registerRoutes(
   // Returns the latest distinct invoice_date from the orders table (YYYY-MM-DD)
   app.get("/api/orders/latest-invoice-date", async (_req, res) => {
     try {
-      const date = await storage.getLatestOrderInvoiceDate();
+      const raw = await storage.getLatestOrderInvoiceDate();
+      const date = raw instanceof Date ? raw.toISOString().split("T")[0] : raw;
       res.json({ invoiceDate: date });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch latest order invoice date" });
@@ -1516,7 +1518,8 @@ export async function registerRoutes(
   // Returns the earliest distinct invoice_date from the orders table (YYYY-MM-DD)
   app.get("/api/orders/earliest-invoice-date", async (_req, res) => {
     try {
-      const date = await storage.getEarliestOrderInvoiceDate();
+      const raw = await storage.getEarliestOrderInvoiceDate();
+      const date = raw instanceof Date ? raw.toISOString().split("T")[0] : raw;
       res.json({ invoiceDate: date });
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch earliest order invoice date" });

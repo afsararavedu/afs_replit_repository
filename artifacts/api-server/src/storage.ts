@@ -417,8 +417,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLatestOrderInvoiceDate(): Promise<string | null> {
-    const cached = _getCache<string | null>('latestInvoiceDate');
-    if (cached !== undefined) return cached;
+    const cached = _getCache<string>('latestInvoiceDate');
+    if (cached !== null) return cached;
     // invoice_date is now a proper date column — ORDER BY gives correct calendar order
     const result = await db
       .select({ invoiceDate: orders.invoiceDate })
@@ -431,8 +431,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getEarliestOrderInvoiceDate(): Promise<string | null> {
-    const cached = _getCache<string | null>('earliestInvoiceDate');
-    if (cached !== undefined) return cached;
+    const cached = _getCache<string>('earliestInvoiceDate');
+    if (cached !== null) return cached;
     // invoice_date is now a proper date column — ORDER BY gives correct calendar order
     const result = await db
       .select({ invoiceDate: orders.invoiceDate })

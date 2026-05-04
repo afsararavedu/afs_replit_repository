@@ -25,8 +25,8 @@ export const dailySales = pgTable("daily_sales", {
   breakageBottles: integer("breakage_bottles").default(0),
   totalClosingStock: integer("total_closing_stock").default(0),
   finalClosingBalance: integer("final_closing_balance").default(0),
-  saleDate: date("sale_date").defaultNow(),
-  invoiceDate: date("invoice_date"),
+  saleDate: date("sale_date", { mode: "string" }).defaultNow(),
+  invoiceDate: date("invoice_date", { mode: "string" }),
   isSubmitted: boolean("is_submitted").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
@@ -50,7 +50,7 @@ export const orders = pgTable("orders", {
   breakageBottleQty: integer("breakage_bottle_qty").default(0),
   totalBottles: integer("total_bottles").default(0),
   remarks: text("remarks"),
-  invoiceDate: date("invoice_date"),
+  invoiceDate: date("invoice_date", { mode: "string" }),
   icdcNumber: text("icdc_number"),
   dataUpdated: text("data_updated").default("NO").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -70,7 +70,7 @@ export const stockDetails = pgTable("stock_details", {
   totalStockValue: numeric("total_stock_value").default('0'),
   breakage: integer("breakage").default(0),
   remarks: text("remarks"),
-  invoiceDate: date("invoice_date").defaultNow(),
+  invoiceDate: date("invoice_date", { mode: "string" }).defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
@@ -88,7 +88,7 @@ export const dailyStock = pgTable("daily_stock", {
   totalStockValue: numeric("total_stock_value").default('0'),
   breakage: integer("breakage").default(0),
   remarks: text("remarks"),
-  date: date("date").notNull(),
+  date: date("date", { mode: "string" }).notNull(),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   uniqueIndex("daily_stock_brand_size_date_idx").on(table.brandNumber, table.size, table.date),
@@ -101,7 +101,7 @@ export type InsertDailyStock = z.infer<typeof insertDailyStockSchema>;
 // Table to track per-date submission status (authoritative lock per date)
 export const salesSubmitStatus = pgTable("sales_submit_status", {
   id: serial("id").primaryKey(),
-  date: date("date").notNull().unique(),
+  date: date("date", { mode: "string" }).notNull().unique(),
   isSubmitted: boolean("is_submitted").default(false).notNull(),
   submittedAt: timestamp("submitted_at"),
 });
@@ -220,7 +220,7 @@ export type InsertExpenseCategory = z.infer<typeof insertExpenseCategorySchema>;
 // Daily expenses — actual expense/income entries per day
 export const dailyExpenses = pgTable("daily_expenses", {
   id: serial("id").primaryKey(),
-  date: date("date").notNull(),
+  date: date("date", { mode: "string" }).notNull(),
   type: text("type").notNull(), // "expense" | "income"
   category: text("category").notNull(),
   amount: numeric("amount").notNull().default('0'),
