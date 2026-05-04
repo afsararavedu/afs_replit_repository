@@ -71,6 +71,7 @@ lib/
   days). The frontend forces a redirect to `/reset-password` only when
   `passwordExpired === true`. Users can also reset their password on
   demand via the "Reset Password" button in the sidebar.
+- **Voice input on Sales page**: A "Voice" button in the toolbar uses the browser's Web Speech API (`SpeechRecognition`/`webkitSpeechRecognition`) for hands-free data entry. Supported commands: dictate brand number + size + closing cases/bottles/breakage to update a row; "save sales" to save; "save and submit" to save + submit; date commands like "select today" or "first December 2025" to change the date picker. The feature requires a browser that supports the Web Speech API (Chrome, Edge, Safari).
 - Initial admin bootstrap: on first startup against an empty `users` table the api-server creates a single `admin` account. The password comes from `ADMIN_BOOTSTRAP_PASSWORD` if that env var is set (must be ≥ 8 characters), otherwise a random one is generated and printed once to the server log. The account is created with `mustResetPassword: true`, so the operator is forced to set a real password on first login. No other accounts (including any "employee" account) are seeded — additional users must be created from inside the app by an admin.
 
 ## Deploying to AWS EC2

@@ -23,6 +23,8 @@ import {
   ArrowDown,
   ArrowUpDown,
   ChevronDown,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -41,6 +43,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { format, parse, subDays } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
+import { useSpeechSales } from "@/hooks/use-speech-sales";
 
 interface SalesSummary {
   openingBalanceValue: number;
@@ -899,6 +902,69 @@ export default function Sales() {
     setCurrentPage(1);
   };
 
+  const speech = useSpeechSales({
+    onUpdateRow: (match, fields) => {
+      if (isSubmitted && !isAdmin) return;
+      if (!isDateAllowedForAction) {
+        toast({ title: "Date Restricted", description: "Cannot update sales for this date.", variant: "destructive" });
+        return;
+      }
+      const row = localSales.find((item) => {
+        if (match.brandNumber && item.brandNumber.trim() !== match.brandNumber.trim()) return false;
+        if (match.size) {
+          const normalizedItemSize = item.size.replace(/\s/g, "").toLowerCase();
+          const normalizedMatchSize = match.size.replace(/\s/g, "").toLowerCase();
+          if (normalizedItemSize !== normalizedMatchSize) return false;
+        }
+        if (match.brandName) {
+          const nameLower = item.brandName.toLowerCase();
+          const searchLower = match.brandName.toLowerCase();
+          if (!nameLower.includes(searchLower)) return false;
+        }
+        return true;
+      });
+      if (!row) {
+        toast({
+          title: "No Match Found",
+          description: `Could not find a row matching: ${[match.brandNumber, match.brandName, match.size].filter(Boolean).join(", ")}`,
+          variant: "destructive",
+          duration: 5000,
+        });
+        return;
+      }
+      if (fields.closingCases !== undefined) {
+        handleInputChange(row.id, "closingBalanceCases", String(fields.closingCases));
+      }
+      if (fields.closingBottles !== undefined) {
+        handleInputChange(row.id, "closingBalanceBottles", String(fields.closingBottles));
+      }
+      if (fields.breakage !== undefined) {
+        handleInputChange(row.id, "breakageBottles", String(fields.breakage));
+      }
+      toast({
+        title: "Voice Updated",
+        description: `Updated ${row.brandName} (${row.size}): ${[
+          fields.closingCases !== undefined ? `Cases: ${fields.closingCases}` : "",
+          fields.closingBottles !== undefined ? `Bottles: ${fields.closingBottles}` : "",
+          fields.breakage !== undefined ? `Breakage: ${fields.breakage}` : "",
+        ].filter(Boolean).join(", ")}`,
+        duration: 4000,
+      });
+    },
+    onSave: () => {
+      if (isSubmitted && !isAdmin) return;
+      if (!isDateAllowedForAction) return;
+      handleSave();
+    },
+    onSubmit: () => {
+      if (isSubmitted && !isAdmin) return;
+      if (!isDateAllowedForAction) return;
+      handleSave();
+      setTimeout(() => handleSubmit(), 600);
+    },
+    onSelectDate: (dateStr: string) => setSelectedDate(dateStr),
+  });
+
   const filteredSales = useMemo(() => {
     let rows = localSales.filter(
       (item) =>
@@ -1125,6 +1191,45 @@ export default function Sales() {
           </div>
 
           <div className="flex items-center gap-3 w-full sm:w-auto flex-wrap justify-end">
+            {speech.supported && (
+              <div className="relative flex items-center gap-2">
+                <button
+                  onClick={speech.toggle}
+                  disabled={isSubmitted && !isAdmin}
+                  data-testid="button-voice-input"
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-medium shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                    speech.isListening
+                      ? "bg-red-500 text-white hover:bg-red-600 animate-pulse"
+                      : "bg-violet-600 text-white hover:bg-violet-700"
+                  }`}
+                >
+                  {speech.isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                  {speech.isListening ? "Stop" : "Voice"}
+                </button>
+                {speech.isListening && (
+                  <div className="absolute top-full left-0 mt-2 z-50 w-72 bg-card border border-border rounded-xl shadow-lg p-3">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      <span className="text-xs font-semibold text-red-600">Listening...</span>
+                    </div>
+                    {speech.transcript && (
+                      <p className="text-sm text-muted-foreground italic truncate">"{speech.transcript}"</p>
+                    )}
+                    {speech.lastAction && (
+                      <p className="text-xs text-primary font-medium mt-1">{speech.lastAction}</p>
+                    )}
+                  </div>
+                )}
+                {!speech.isListening && speech.lastAction && (
+                  <span className="text-xs text-muted-foreground max-w-[160px] truncate" title={speech.lastAction}>
+                    {speech.lastAction}
+                  </span>
+                )}
+                {speech.error && (
+                  <span className="text-xs text-red-500">{speech.error}</span>
+                )}
+              </div>
+            )}
             {/* Import split-button */}
             <div className="flex items-stretch">
               <button
