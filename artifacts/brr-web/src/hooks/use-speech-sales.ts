@@ -5,6 +5,7 @@ interface SpeechSalesCallbacks {
   onSave: () => void;
   onSubmit: () => void;
   onSelectDate: (dateStr: string) => void;
+  onPageChange: (direction: "next" | "prev" | "first" | "last" | number) => void;
 }
 
 interface SpeechSalesResult {
@@ -147,10 +148,11 @@ function parseDate(text: string): string | null {
 }
 
 interface ParsedCommand {
-  type: "update" | "save" | "submit" | "date" | "unknown";
+  type: "update" | "save" | "submit" | "date" | "page" | "unknown";
   match?: { brandNumber?: string; brandName?: string; size?: string };
   fields?: { closingCases?: number; closingBottles?: number; breakage?: number };
   dateStr?: string;
+  pageDirection?: "next" | "prev" | "first" | "last" | number;
 }
 
 function extractNumber(text: string, pattern: RegExp): number | null {
@@ -171,6 +173,26 @@ function parseTranscript(text: string): ParsedCommand {
   }
   if (/\bsave\s*sales?\b/i.test(lower) || (/\bsave\b/i.test(lower) && !/select|date/i.test(lower))) {
     return { type: "save" };
+  }
+
+  // Page navigation commands — checked before brand/number extraction so
+  // "next", "previous", "first", "last" are not confused with field values.
+  if (/\bnext\s*page\b|\bgo\s*(to\s*)?next\b|\bpage\s*next\b/i.test(lower)) {
+    return { type: "page", pageDirection: "next" };
+  }
+  if (/\b(previous|prev|back|prior)\s*page\b|\bgo\s*(to\s*)?(previous|prev|back)\b|\bpage\s*(previous|prev|back)\b/i.test(lower)) {
+    return { type: "page", pageDirection: "prev" };
+  }
+  if (/\bfirst\s*page\b|\bgo\s*(to\s*)?first\s*page\b|\bpage\s*one\b|\bpage\s*1\b/i.test(lower)) {
+    return { type: "page", pageDirection: "first" };
+  }
+  if (/\blast\s*page\b|\bgo\s*(to\s*)?last\s*page\b/i.test(lower)) {
+    return { type: "page", pageDirection: "last" };
+  }
+  const goToPageMatch = lower.match(/\bpage\s+(\w[\w\s]*)/i) || lower.match(/\bgo\s+to\s+page\s+(\w[\w\s]*)/i);
+  if (goToPageMatch) {
+    const num = wordsToNumber(goToPageMatch[1].trim());
+    if (num !== null && num >= 1) return { type: "page", pageDirection: num };
   }
 
   if (/select.*date|date.*today|date.*yesterday|\b\d{1,2}\w*\s+(january|february|march|april|may|june|july|august|september|october|november|december)/i.test(lower) ||
@@ -261,6 +283,14 @@ export function useSpeechSales(callbacks: SpeechSalesCallbacks): SpeechSalesResu
         if (command.dateStr) {
           setLastAction(`Selecting date: ${command.dateStr}`);
           cb.onSelectDate(command.dateStr);
+        }
+        break;
+      case "page":
+        if (command.pageDirection !== undefined) {
+          const dir = command.pageDirection;
+          const label = typeof dir === "number" ? `Page ${dir}` : dir.charAt(0).toUpperCase() + dir.slice(1) + " page";
+          setLastAction(label);
+          cb.onPageChange(dir);
         }
         break;
       case "update":

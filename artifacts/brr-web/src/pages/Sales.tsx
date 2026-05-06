@@ -963,6 +963,16 @@ export default function Sales() {
       setTimeout(() => handleSubmit(), 600);
     },
     onSelectDate: (dateStr: string) => setSelectedDate(dateStr),
+    onPageChange: (direction) => {
+      setCurrentPage((prev) => {
+        if (direction === "next") return Math.min(prev + 1, totalPages);
+        if (direction === "prev") return Math.max(prev - 1, 1);
+        if (direction === "first") return 1;
+        if (direction === "last") return totalPages;
+        if (typeof direction === "number") return Math.min(Math.max(direction, 1), totalPages);
+        return prev;
+      });
+    },
   });
 
   const filteredSales = useMemo(() => {
