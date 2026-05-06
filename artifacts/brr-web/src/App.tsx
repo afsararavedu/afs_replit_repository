@@ -24,7 +24,7 @@ function ProtectedRoute({ component: Component, path, role }: { component: React
 
   if (isLoading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
   if (!user) return <Redirect to="/auth" />;
-  if (role && user.role !== role) return <Redirect to="/" />;
+  if (role && user.role !== role) return <Redirect to="/sales" />;
 
   return <Component />;
 }

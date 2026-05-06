@@ -64,8 +64,10 @@ export default function AuthPage() {
       // -- the user can change it later from the sidebar button.
       if (user.passwordExpired) {
         setLocation("/reset-password");
-      } else {
+      } else if (user.role === "admin") {
         setLocation("/");
+      } else {
+        setLocation("/sales");
       }
     }
   }, [user]);
