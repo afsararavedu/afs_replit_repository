@@ -222,7 +222,7 @@ curl -s http://127.0.0.1:8080/api/healthz
 ### 8.2 nginx (pre-cert bootstrap)
 ```bash
 sudo cp deploy/aws-ec2/nginx.conf.example /etc/nginx/conf.d/brr.conf
-sudo sed -i 's/brr.example.com/<your-actual-domain>/g' /etc/nginx/conf.d/brr.conf
+sudo sed -i 's/brrliquorsoft.com/brrliquorsoft.com/g' /etc/nginx/conf.d/brr.conf
 # Disable the default "welcome" site if your distro ships one:
 #   Amazon Linux 2023: edit /etc/nginx/nginx.conf and delete or comment out
 #     the default `server { listen 80 default_server; ... }` block.
@@ -239,7 +239,7 @@ Then bring nginx up:
 sudo nginx -t
 sudo systemctl enable --now nginx
 sudo systemctl reload nginx
-# Verify the app loads over plain HTTP at http://<your-domain>/ before continuing.
+# Verify the app loads over plain HTTP at http://brrliquorsoft.com/ before continuing.
 ```
 
 Section 8.3 will run certbot, which puts the original two-server-block layout back (port 80 → redirect, port 443 → app) and fills in the real cert paths.
@@ -247,12 +247,12 @@ Section 8.3 will run certbot, which puts the original two-server-block layout ba
 ### 8.3 TLS via Let's Encrypt
 ```bash
 sudo mkdir -p /var/www/letsencrypt
-sudo certbot --nginx -d <your-actual-domain>
+sudo certbot --nginx -d brrliquorsoft.com
 # Verify auto-renewal
 sudo certbot renew --dry-run
 ```
 
-certbot will rewrite `/etc/nginx/conf.d/brr.conf` to enable HTTPS. After that, browse to `https://<your-domain>` and you should see the login page.
+certbot will rewrite `/etc/nginx/conf.d/brr.conf` to enable HTTPS. After that, browse to `https://brrliquorsoft.com` and you should see the login page.
 
 > **Alternative**: terminate TLS at an Application Load Balancer (ALB) with an ACM certificate, point the ALB at port 80 on the EC2 box, and skip certbot. If you do this you need three small changes to the supplied `nginx.conf.example`, otherwise the secure session cookie won't get set:
 >
@@ -264,7 +264,7 @@ certbot will rewrite `/etc/nginx/conf.d/brr.conf` to enable HTTPS. After that, b
 
 ## 9. First-login checklist
 
-1. Browse to `https://<your-domain>/`.
+1. Browse to `https://brrliquorsoft.com/`.
 2. Log in as `admin` with the bootstrap password (either the value of `ADMIN_BOOTSTRAP_PASSWORD` or the one printed once in `journalctl -u brr-api`).
 3. The app will force you onto the **Reset Password** screen because the bootstrap account is created with `mustResetPassword=true`. Set a real password.
 4. Comment out `ADMIN_BOOTSTRAP_PASSWORD` in `/etc/brr/brr-api.env` and `sudo systemctl restart brr-api` so it isn't sitting in the env file.
@@ -277,7 +277,7 @@ certbot will rewrite `/etc/nginx/conf.d/brr.conf` to enable HTTPS. After that, b
 The Expo app reads its API base URL from `EXPO_PUBLIC_DOMAIN` at build time (see `artifacts/brr-mobile/lib/api.ts`). When you build the production iOS/Android binary, set:
 
 ```bash
-EXPO_PUBLIC_DOMAIN=<your-actual-domain> \
+EXPO_PUBLIC_DOMAIN=brrliquorsoft.com \
   eas build --profile production --platform all
 ```
 
