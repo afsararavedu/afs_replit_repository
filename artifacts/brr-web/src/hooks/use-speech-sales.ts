@@ -166,6 +166,9 @@ function parseTranscript(text: string): ParsedCommand {
   if (/save\s*(and|&)?\s*submit/i.test(lower)) {
     return { type: "submit" };
   }
+  if (/\bsubmit\s*sales?\b/i.test(lower) || /^\s*submit\s*$/i.test(lower)) {
+    return { type: "submit" };
+  }
   if (/\bsave\s*sales?\b/i.test(lower) || (/\bsave\b/i.test(lower) && !/select|date/i.test(lower))) {
     return { type: "save" };
   }
