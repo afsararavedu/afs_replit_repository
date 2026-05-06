@@ -1374,10 +1374,10 @@ export default function Sales() {
                 <th className="table-header w-16 text-right bg-green-50/50 border-r border-border">New Stk (Btls)</th>
                 <th className="table-header w-14 text-right border-r border-border">Total Stk</th>
                 <th className="table-header w-20 text-center bg-orange-50/80 border-l border-orange-100 font-bold text-orange-900 border-r border-border">
-                  Cls Bal (Cs)
+                  CB for Cases
                 </th>
                 <th className="table-header w-20 text-center bg-orange-50/80 font-bold text-orange-900 border-r border-border">
-                  Cls Bal (Btls)
+                  CB for Bottles
                 </th>
                 <th className="table-header w-14 text-center border-r border-border">
                   <button onClick={() => handleSalesSortToggle('soldBottles')} className="flex items-center gap-1 hover:text-foreground mx-auto">
