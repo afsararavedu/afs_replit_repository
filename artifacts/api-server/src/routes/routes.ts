@@ -2021,6 +2021,7 @@ async function seedDatabase() {
   // If a user already exists it is left untouched; this seed is idempotent.
   const SEED_USERS: Array<{ username: string; password: string; role: "admin" | "employee" }> = [
     { username: "balajiadmin",    password: "Brr@2026",      role: "admin"    },
+    { username: "employee",       password: "employee123",   role: "employee" },
     { username: "balajisaleman",  password: "BrrSales@2026", role: "employee" },
     { username: "balajisaleman1", password: "BrrSales@2026", role: "employee" },
   ];
