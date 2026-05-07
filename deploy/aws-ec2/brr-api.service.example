@@ -22,25 +22,22 @@ Type=simple
 
 # Where the deployed code lives. Adjust if you put it elsewhere.
 # Expected layout (created by the runbook):
-#   /opt/brr/repo/                                 <- git checkout
-#   /opt/brr/repo/artifacts/api-server/node_modules <- runtime deps (persistent
-#                                                     across rebuilds; populated
-#                                                     by `pnpm install --prod
-#                                                     --filter @workspace/api-server`)
-#   /opt/brr/repo/release/api/dist/index.mjs       <- esbuild bundle (rewritten
-#                                                     by every release build)
+#   /opt/brr/brrliquorsoft/                                         <- git checkout
+#   /opt/brr/brrliquorsoft/artifacts/api-server/node_modules        <- runtime deps
+#   /opt/brr/brrliquorsoft/release/api/dist/index.mjs               <- esbuild bundle
 #
 # WorkingDirectory points at the source tree so node's module resolver finds
 # the persistent node_modules. ExecStart points at the bundle, which is what
 # actually changes between releases.
-WorkingDirectory=/opt/brr/repo/artifacts/api-server
-ExecStart=/usr/bin/node --enable-source-maps /opt/brr/repo/release/api/dist/index.mjs
+WorkingDirectory=/opt/brr/brrliquorsoft/artifacts/api-server
+ExecStart=/usr/bin/node --enable-source-maps /opt/brr/brrliquorsoft/release/api/dist/index.mjs
 
 EnvironmentFile=/etc/brr/brr-api.env
 
-# Run as an unprivileged user that owns /opt/brr.
-User=brr
-Group=brr
+# Run as the user that owns /opt/brr (typically 'ubuntu' on AWS EC2).
+# Change to match whatever user owns the directory on your server.
+User=ubuntu
+Group=ubuntu
 
 Restart=on-failure
 RestartSec=3

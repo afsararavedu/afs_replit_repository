@@ -1,0 +1,62 @@
+May 07 14:22:07 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+ubuntu@ip-172-31-10-166:/opt/brr/brrliquor_tablet_nlp_https$ cd /opt/brr/brrliquor_tablet_nlp_https
+
+sudo systemctl status brr-api
+
+journalctl -u brr-api -n 50 --no-pager
+● brr-api.service - BRR Liquor Soft API server
+     Loaded: loaded (/etc/systemd/system/brr-api.service; enabled; preset: enabled)
+     Active: activating (auto-restart) (Result: exit-code) since Thu 2026-05-07 14:24:43 UTC; 2s ago
+    Process: 6527 ExecStart=/usr/bin/node --enable-source-maps /opt/brr/repo/release/api/dist/index.mjs (code=exited, status=200/CHDIR)
+   Main PID: 6527 (code=exited, status=200/CHDIR)
+        CPU: 10ms
+May 07 14:24:14 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 657.
+May 07 14:24:14 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:24:14 ip-172-31-10-166 (node)[6491]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:24:14 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:24:14 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:24:17 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 658.
+May 07 14:24:17 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:24:17 ip-172-31-10-166 (node)[6495]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:24:17 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:24:17 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:24:20 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 659.
+May 07 14:24:20 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:24:21 ip-172-31-10-166 (node)[6499]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:24:21 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:24:21 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:24:24 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 660.
+May 07 14:24:24 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:24:24 ip-172-31-10-166 (node)[6503]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:24:24 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:24:24 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:24:27 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 661.
+May 07 14:24:27 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:24:27 ip-172-31-10-166 (node)[6507]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:24:27 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:24:27 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:24:30 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 662.
+May 07 14:24:30 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:24:30 ip-172-31-10-166 (node)[6511]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:24:30 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:24:30 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:24:33 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 663.
+May 07 14:24:33 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:24:34 ip-172-31-10-166 (node)[6515]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:24:34 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:24:34 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:24:37 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 664.
+May 07 14:24:37 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:24:37 ip-172-31-10-166 (node)[6519]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:24:37 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:24:37 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:24:40 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 665.
+May 07 14:24:40 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:24:40 ip-172-31-10-166 (node)[6523]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:24:40 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:24:40 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:24:43 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 666.
+May 07 14:24:43 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:24:43 ip-172-31-10-166 (node)[6527]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:24:43 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:24:43 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
