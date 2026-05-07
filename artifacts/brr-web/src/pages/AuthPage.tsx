@@ -33,7 +33,6 @@ const loginSchema = z.object({
 export default function AuthPage() {
   const { user, loginMutation } = useAuth();
   const [, setLocation] = useLocation();
-  const [showForgot, setShowForgot] = useState(false);
   // Wall-clock time (ms) at which the lockout expires, or null if not locked.
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
   // Re-render every second while the countdown is active.
@@ -58,13 +57,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (user) {
-      // After login, only force the reset screen when the password is
-      // older than 90 days (server-computed `passwordExpired`). Otherwise
-      // go straight to the dashboard, even if a temp password was issued
-      // -- the user can change it later from the sidebar button.
-      if (user.passwordExpired) {
-        setLocation("/reset-password");
-      } else if (user.role === "admin") {
+      if (user.role === "admin") {
         setLocation("/");
       } else {
         setLocation("/sales");
@@ -259,51 +252,9 @@ export default function AuthPage() {
               </form>
             </Form>
 
-            <div className="mt-5 text-center">
-              <button
-                onClick={() => setShowForgot(true)}
-                className="text-sm font-medium hover:underline"
-                style={{ color: "#e03a2f" }}
-              >
-                Forgot Password? (Admin Only)
-              </button>
-            </div>
           </div>
         </div>
       </div>
-
-      {/* Forgot password info modal — self-service reset has been removed
-          to prevent anyone from generating a temp password for an admin
-          account. An authenticated admin must now issue a temporary
-          password via the API and hand it off to the locked-out user. */}
-      {showForgot && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-          <Card className="w-full max-w-sm shadow-2xl">
-            <CardHeader>
-              <CardTitle>Forgot Password</CardTitle>
-              <CardDescription>
-                For security, password resets are no longer self-service.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Please contact your system administrator. They can issue you
-                a temporary password, which you can use to log in and then
-                set a new password.
-              </p>
-              <div className="flex">
-                <Button
-                  onClick={() => setShowForgot(false)}
-                  className="flex-1"
-                  style={{ backgroundColor: "#e03a2f" }}
-                >
-                  OK
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
 
       <style>{`
         /* Auth layout — cross-browser, all devices */

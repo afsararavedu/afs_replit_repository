@@ -24,12 +24,12 @@ declare global {
 
 /**
  * Build the JSON-safe user payload sent on /api/login, /api/user and
- * /api/register. Strips credential material (password hash, tempPassword)
+ * /api/register. Strips credential material (password hash)
  * that the browser never needs to see.
  */
 function safeUserResponse(user: SelectUser) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { password, tempPassword, ...rest } = user;
+  const { password, ...rest } = user;
   return rest;
 }
 
@@ -236,70 +236,12 @@ export function setupAuth(app: Express) {
     res.json(safeUserResponse(req.user as SelectUser));
   });
   
-  // Generate a temporary password for a user. Restricted to authenticated
-  // admins. The endpoint must NOT be reachable anonymously — previously it
-  // returned the temp password to anyone who knew an admin username, which
-  // let anyone take over an admin account.
-  //
-  // The freshly-generated temp password is stored on the user record but
-  // is intentionally NOT included in the response body. To retrieve it,
-  // an admin must make a separate explicit call to
-  // POST /api/admin/reveal-temp-password. This split keeps credential
-  // material out of the response that triggers generation (so things like
-  // request loggers, response interceptors, or accidentally-shared
-  // browser network logs don't capture a usable password).
-  app.post("/api/forgot-password", requireAdmin, async (req, res) => {
-    const { username } = req.body;
-    if (!username || typeof username !== "string") {
-      return res.status(400).send("Username is required");
-    }
-
-    const user = await storage.getUserByUsername(username);
-    if (!user) return res.status(404).send("User not found");
-
-    const tempPassword = Math.random().toString(36).slice(-8);
-    await storage.updateUser(user.id, {
-      tempPassword,
-      mustResetPassword: true,
-    });
-
-    return res.json({
-      message:
-        "Temporary password issued. Use POST /api/admin/reveal-temp-password to retrieve it.",
-    });
-  });
-
-  // Admin-only endpoint that returns the currently-stored temporary
-  // password for a user. Kept separate from /api/forgot-password so the
-  // act of generating a temp password and the act of revealing one are
-  // distinct, auditable operations. Returns 404 if the user has no
-  // pending temp password so callers can't probe for active resets they
-  // didn't initiate.
-  app.post("/api/admin/reveal-temp-password", requireAdmin, async (req, res) => {
-    const { username } = req.body;
-    if (!username || typeof username !== "string") {
-      return res.status(400).send("Username is required");
-    }
-
-    const user = await storage.getUserByUsername(username);
-    if (!user) return res.status(404).send("User not found");
-    if (!user.tempPassword) {
-      return res
-        .status(404)
-        .send("No temporary password is set for this user");
-    }
-
-    return res.json({ tempPassword: user.tempPassword });
-  });
-
   app.post("/api/reset-password", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const { password } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
     await storage.updateUser(req.user!.id, {
       password: hashedPassword,
-      tempPassword: null,
-      mustResetPassword: false,
       passwordChangedAt: new Date(),
     });
     res.sendStatus(200);

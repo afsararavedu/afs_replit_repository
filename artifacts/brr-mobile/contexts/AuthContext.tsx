@@ -14,7 +14,6 @@ export interface User {
   username: string;
   role: string;
   fullName?: string | null;
-  mustResetPassword?: boolean | null;
 }
 
 interface AuthContextValue {
