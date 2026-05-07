@@ -1,0 +1,24 @@
+ubuntu@ip-172-31-10-166:/opt/brr/brrliquor_tablet_nlp_https$ sudo systemctl daemon-reload
+sudo systemctl restart brr-api
+sleep 3
+journalctl -u brr-api -n 20 --no-pager
+May 07 14:32:12 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:32:12 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:32:15 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 805.
+May 07 14:32:15 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:32:15 ip-172-31-10-166 (node)[7103]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:32:15 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:32:15 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:32:18 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 806.
+May 07 14:32:18 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:32:18 ip-172-31-10-166 (node)[7107]: brr-api.service: Changing to the requested working directory failed: No such file or directory
+May 07 14:32:18 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=200/CHDIR
+May 07 14:32:18 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 07 14:32:21 ip-172-31-10-166 systemd[1]: Stopped brr-api.service - BRR Liquor Soft API server.
+May 07 14:32:21 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:32:21 ip-172-31-10-166 node[7164]: {"level":30,"time":1778164341754,"pid":7164,"hostname":"ip-172-31-10-166","port":8080,"msg":"Server listening"}
+May 07 14:32:53 ip-172-31-10-166 systemd[1]: Stopping brr-api.service - BRR Liquor Soft API server...
+May 07 14:32:53 ip-172-31-10-166 systemd[1]: brr-api.service: Deactivated successfully.
+May 07 14:32:53 ip-172-31-10-166 systemd[1]: Stopped brr-api.service - BRR Liquor Soft API server.
+May 07 14:32:53 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 07 14:32:54 ip-172-31-10-166 node[7235]: {"level":30,"ti
