@@ -2010,8 +2010,9 @@ export async function registerRoutes(
 //   password is taken from the `ADMIN_BOOTSTRAP_PASSWORD` env var if set,
 //   otherwise a strong random password is generated and printed once to
 //   the server logs so the operator can capture it.
-// - The bootstrapped admin is immediately usable. The operator can change
-//   the password any time from the sidebar Reset Password button.
+// - The bootstrapped admin is created with `mustResetPassword: false` so
+//   it is immediately usable. The operator can change the password any
+//   time from the sidebar Reset Password button.
 // - Any pre-existing user (created by the old seed code in a previous
 //   deployment) whose password still matches a publicly-known default
 //   gets that password forcibly rotated on startup, so we cannot leave
@@ -2021,7 +2022,6 @@ async function seedDatabase() {
   // If a user already exists it is left untouched; this seed is idempotent.
   const SEED_USERS: Array<{ username: string; password: string; role: "admin" | "employee" }> = [
     { username: "balajiadmin",    password: "Brr@2026",      role: "admin"    },
-    { username: "employee",       password: "employee123",   role: "employee" },
     { username: "balajisaleman",  password: "BrrSales@2026", role: "employee" },
     { username: "balajisaleman1", password: "BrrSales@2026", role: "employee" },
   ];
@@ -2034,6 +2034,8 @@ async function seedDatabase() {
       username,
       password: hashed,
       role,
+      tempPassword: null,
+      mustResetPassword: false,
       passwordChangedAt: new Date(),
     });
     logger.info(`Seeded user "${username}" (${role}).`);
