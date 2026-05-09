@@ -3,11 +3,10 @@
 #
 # Output layout (under ./release/):
 #   release/
-#     api/                # node bundle to run with `node dist/index.mjs`
+#     api/                # self-contained api-server bundle
 #       dist/             # esbuild output for the api-server
-#       package.json      # pnpm install --prod here on the EC2 box
-#       pnpm-lock.yaml
-#       node_modules/     # populated only if BUILD_RELEASE_INSTALL_API_DEPS=1
+#       node_modules/     # all runtime deps (created by `pnpm deploy`)
+#       package.json
 #     web/                # static site to serve from nginx (root = release/web)
 #     VERSION             # short git SHA + UTC timestamp
 #
@@ -15,14 +14,6 @@
 #
 # Usage:
 #   bash scripts/deploy/build-release.sh
-#
-# Optional env:
-#   BUILD_RELEASE_INSTALL_API_DEPS=1   # also install api-server runtime deps
-#                                      # into release/api/node_modules. Off by
-#                                      # default because pnpm cannot install
-#                                      # workspace:* deps outside the monorepo;
-#                                      # the runbook installs deps on the EC2
-#                                      # box from a checkout of the repo.
 
 set -euo pipefail
 
@@ -44,7 +35,7 @@ fi
 
 log "wiping previous release/ directory"
 rm -rf "$RELEASE_DIR"
-mkdir -p "$RELEASE_DIR/api" "$RELEASE_DIR/web"
+mkdir -p "$RELEASE_DIR/web"
 
 log "step 1/5: pnpm install --frozen-lockfile"
 pnpm install --frozen-lockfile
@@ -64,22 +55,18 @@ PORT=80 BASE_PATH=/ pnpm --filter @workspace/brr-web run build
 
 log "step 5/5: assemble release/ folder"
 
-# api-server: copy the bundled output and the runtime manifest. We
-# intentionally do NOT copy node_modules here -- on EC2 you'll check the
-# repo out and run `pnpm install --prod --filter @workspace/api-server`,
-# because the api-server depends on workspace:* packages that pnpm can
-# only resolve from inside the monorepo.
-cp -R artifacts/api-server/dist "$RELEASE_DIR/api/dist"
-cp artifacts/api-server/package.json "$RELEASE_DIR/api/package.json"
-cp pnpm-lock.yaml "$RELEASE_DIR/api/pnpm-lock.yaml" 2>/dev/null || true
+# Use `pnpm deploy` to create a self-contained api/ directory that includes
+# a proper node_modules/ with all runtime dependencies resolved (including
+# externalized packages like connect-pg-simple, pdf-parse, bcryptjs, etc.).
+# This avoids the problem of externalized packages being unreachable at runtime
+# when the bundle runs outside the monorepo's node_modules tree.
+log "  running pnpm deploy for api-server..."
+pnpm --filter @workspace/api-server deploy --prod --legacy "$RELEASE_DIR/api"
 
-if [[ "${BUILD_RELEASE_INSTALL_API_DEPS:-0}" == "1" ]]; then
-  log "  installing api-server runtime deps into release/api (best-effort)"
-  # This is best-effort and only useful if you've vendored / replaced the
-  # workspace:* deps with real versions. It will fail on a stock checkout.
-  (cd "$RELEASE_DIR/api" && pnpm install --prod) || \
-    log "  warning: pnpm install in release/api failed (expected if workspace:* deps are present)"
-fi
+# pnpm deploy copies the package source but not the esbuild output, so copy
+# the compiled bundle on top.
+log "  copying compiled dist/ into release/api/"
+cp -R artifacts/api-server/dist/. "$RELEASE_DIR/api/dist/"
 
 # web: vite outputs to artifacts/brr-web/dist/public
 cp -R artifacts/brr-web/dist/public/. "$RELEASE_DIR/web/"
@@ -92,4 +79,4 @@ cp -R artifacts/brr-web/dist/public/. "$RELEASE_DIR/web/"
 
 log "done."
 log "release/ contents:"
-( cd "$RELEASE_DIR" && find . -maxdepth 2 -mindepth 1 | sort )
+( cd "$RELEASE_DIR" && find . -maxdepth 3 -mindepth 1 | sort )

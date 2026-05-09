@@ -1,0 +1,28 @@
+ubuntu@ip-172-31-10-166:/opt/brr/balaji_tablet_final$ sudo systemctl restart brr-api
+sudo journalctl -u brr-api -n 50 --no-pager   # check the error
+May 08 14:54:17 ip-172-31-10-166 node[49546]:     at ModuleJob.syncLink (node:internal/modules/esm/module_job:162:33) {
+May 08 14:54:17 ip-172-31-10-166 node[49546]:   code: 'ERR_MODULE_NOT_FOUND'
+May 08 14:54:17 ip-172-31-10-166 node[49546]: }
+May 08 14:54:17 ip-172-31-10-166 node[49546]: Node.js v24.15.0
+May 08 14:54:17 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=1/FAILURE
+May 08 14:54:17 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+May 08 14:54:20 ip-172-31-10-166 systemd[1]: brr-api.service: Scheduled restart job, restart counter is at 20.
+May 08 14:54:20 ip-172-31-10-166 systemd[1]: Started brr-api.service - BRR Liquor Soft API server.
+May 08 14:54:20 ip-172-31-10-166 node[49559]: node:internal/modules/package_json_reader:301
+May 08 14:54:20 ip-172-31-10-166 node[49559]:   throw new ERR_MODULE_NOT_FOUND(packageName, fileURLToPath(base), null);
+May 08 14:54:20 ip-172-31-10-166 node[49559]:         ^
+May 08 14:54:20 ip-172-31-10-166 node[49559]: Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'connect-pg-simple' imported from /opt/brr/balaji_tablet_final/release/api/dist/index.mjs
+May 08 14:54:20 ip-172-31-10-166 node[49559]:     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
+May 08 14:54:20 ip-172-31-10-166 node[49559]:     at packageResolve (node:internal/modules/esm/resolve:764:81)
+May 08 14:54:20 ip-172-31-10-166 node[49559]:     at moduleResolve (node:internal/modules/esm/resolve:855:18)
+May 08 14:54:20 ip-172-31-10-166 node[49559]:     at defaultResolve (node:internal/modules/esm/resolve:988:11)
+May 08 14:54:20 ip-172-31-10-166 node[49559]:     at #cachedDefaultResolve (node:internal/modules/esm/loader:697:20)
+May 08 14:54:20 ip-172-31-10-166 node[49559]:     at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:714:38)
+May 08 14:54:20 ip-172-31-10-166 node[49559]:     at ModuleLoader.resolveSync (node:internal/modules/esm/loader:746:52)
+May 08 14:54:20 ip-172-31-10-166 node[49559]:     at #resolve (node:internal/modules/esm/loader:679:17)
+May 08 14:54:20 ip-172-31-10-166 node[49559]:     at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:599:35)
+May 08 14:54:20 ip-172-31-10-166 node[49559]:     at ModuleJob.syncLink (node:internal/modules/esm/module_job:162:33) {
+May 08 14:54:20 ip-172-31-10-166 node[49559]:   code: 'ERR_MODULE_NOT_FOUND'
+May 08 14:54:20 ip-172-31-10-166 node[49559]: }
+May 08 14:54:20 ip-172-31-10-166 node[49559]: Node.js v24.15.0
+May 08 14:54:20 ip-172-31-10-166 systemd[1]: brr-api.service: Mai

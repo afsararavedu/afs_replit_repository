@@ -3,14 +3,76 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build as esbuild } from "esbuild";
 import esbuildPluginPino from "esbuild-plugin-pino";
-import { rm } from "node:fs/promises";
+import { rm, readFile, writeFile, readdir, stat } from "node:fs/promises";
 
 // Plugins (e.g. 'esbuild-plugin-pino') may use `require` to resolve dependencies
 globalThis.require = createRequire(import.meta.url);
 
 const artifactDir = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Strip Git merge conflict markers from a file, keeping the HEAD ("ours") side.
+ * Called before esbuild so that a git merge during deployment never blocks a build.
+ */
+function stripConflictMarkers(content) {
+  if (!content.includes("<<<<<<<")) return content;
+
+  const lines = content.split("\n");
+  const out = [];
+  let state = "normal"; // "normal" | "ours" | "theirs"
+
+  for (const line of lines) {
+    if (line.startsWith("<<<<<<< ")) {
+      state = "ours";
+      continue;
+    }
+    if (line.startsWith("=======") && state === "ours") {
+      state = "theirs";
+      continue;
+    }
+    if (line.startsWith(">>>>>>> ") && state === "theirs") {
+      state = "normal";
+      continue;
+    }
+    if (state !== "theirs") {
+      out.push(line);
+    }
+  }
+
+  return out.join("\n");
+}
+
+/** Recursively find all .ts files under a directory. */
+async function findTsFiles(dir) {
+  const entries = await readdir(dir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await findTsFiles(full)));
+    } else if (entry.isFile() && entry.name.endsWith(".ts")) {
+      files.push(full);
+    }
+  }
+  return files;
+}
+
+async function resolveConflicts() {
+  const srcDir = path.resolve(artifactDir, "src");
+  const tsFiles = await findTsFiles(srcDir);
+  for (const file of tsFiles) {
+    const original = await readFile(file, "utf8");
+    if (!original.includes("<<<<<<<")) continue;
+    const cleaned = stripConflictMarkers(original);
+    await writeFile(file, cleaned, "utf8");
+    console.warn(`[build] Stripped git conflict markers from ${path.relative(artifactDir, file)}`);
+  }
+}
+
 async function buildAll() {
+  // Remove stale conflict markers before esbuild sees any source file
+  await resolveConflicts();
+
   const distDir = path.resolve(artifactDir, "dist");
   await rm(distDir, { recursive: true, force: true });
 

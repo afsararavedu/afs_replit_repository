@@ -1,0 +1,67 @@
+ubuntu@ip-172-31-10-166:/opt/brr/balaji_tablet_final$ 
+ubuntu@ip-172-31-10-166:/opt/brr/balaji_tablet_final$ curl http://16.112.170.203/api/healthz
+curl: (7) Failed to connect to 16.112.170.203 port 80 after 0 ms: Couldn't connect to server
+ubuntu@ip-172-31-10-166:/opt/brr/balaji_tablet_final$ cd /opt/brr/balaji_tablet_final/release/api
+
+# Strip workspace:* entries from package.json
+node -e "
+const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+const deps = pkg.dependencies || {};
+for (const [k, v] of Object.entries(deps)) {
+  if (String(v).startsWith('workspace:')) delete deps[k];
+}
+pkg.dependencies = deps;
+fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+console.log('Done');
+"
+
+# Install all real runtime dependencies
+npm install --omit=dev \
+  bcryptjs connect-pg-simple cookie-parser cors dotenv \
+  drizzle-orm express express-session memorystore multer \
+  passport passport-local pdf-parse pg pino pino-http xlsx zod
+
+sudo systemctl restart brr-api
+sleep 3
+sudo journalctl -u brr-api -n 15 --no-pager
+curl http://localhost:8080/api/healthz
+node:fs:2380
+    return binding.writeFileUtf8(
+                   ^
+
+Error: EACCES: permission denied, open 'package.json'
+    at Object.writeFileSync (node:fs:2380:20)
+    at [eval]:9:4
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:118:14
+    at [eval]-wrapper:6:24
+    at runScript (node:internal/process/execution:101:62)
+    at evalScript (node:internal/process/execution:133:3)
+    at node:internal/main/eval_string:51:3 {
+  errno: -13,
+  code: 'EACCES',
+  syscall: 'open',
+  path: 'package.json'
+}
+
+Node.js v20.20.2
+npm error code EUNSUPPORTEDPROTOCOL
+npm error Unsupported URL Type "workspace:": workspace:*
+npm error A complete log of this run can be found in: /home/ubuntu/.npm/_logs/2026-05-08T15_29_51_334Z-debug-0.log
+May 08 15:29:51 ip-172-31-10-166 node[56312]:     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:301:9)
+May 08 15:29:51 ip-172-31-10-166 node[56312]:     at packageResolve (node:internal/modules/esm/resolve:764:81)
+May 08 15:29:51 ip-172-31-10-166 node[56312]:     at moduleResolve (node:internal/modules/esm/resolve:855:18)
+May 08 15:29:51 ip-172-31-10-166 node[56312]:     at defaultResolve (node:internal/modules/esm/resolve:988:11)
+May 08 15:29:51 ip-172-31-10-166 node[56312]:     at #cachedDefaultResolve (node:internal/modules/esm/loader:697:20)
+May 08 15:29:51 ip-172-31-10-166 node[56312]:     at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:714:38)
+May 08 15:29:51 ip-172-31-10-166 node[56312]:     at ModuleLoader.resolveSync (node:internal/modules/esm/loader:746:52)
+May 08 15:29:51 ip-172-31-10-166 node[56312]:     at #resolve (node:internal/modules/esm/loader:679:17)
+May 08 15:29:51 ip-172-31-10-166 node[56312]:     at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:599:35)
+May 08 15:29:51 ip-172-31-10-166 node[56312]:     at ModuleJob.syncLink (node:internal/modules/esm/module_job:162:33) {
+May 08 15:29:51 ip-172-31-10-166 node[56312]:   code: 'ERR_MODULE_NOT_FOUND'
+May 08 15:29:51 ip-172-31-10-166 node[56312]: }
+May 08 15:29:51 ip-172-31-10-166 node[56312]: Node.js v24.15.0
+May 08 15:29:51 ip-172-31-10-166 systemd[1]: brr-api.service: Main process exited, code=exited, status=1/FAILURE
+May 08 15:29:51 ip-172-31-10-166 systemd[1]: brr-api.service: Failed with result 'exit-code'.
+curl: (7) Failed to connect to localhost port 8080 after 0 ms: Couldn't connect to server

@@ -98,7 +98,9 @@ export function setupAuth(app: Express) {
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       httpOnly: true,
-      secure: isProduction,
+      // Default: secure in production (HTTPS). Set COOKIE_SECURE=false in
+      // brr-api.env when running behind HTTP-only nginx (no TLS termination).
+      secure: isProduction && process.env.COOKIE_SECURE !== "false",
       sameSite: "lax",
     },
   };
