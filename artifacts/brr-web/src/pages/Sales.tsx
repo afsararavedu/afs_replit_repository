@@ -1236,7 +1236,37 @@ export default function Sales() {
                   </span>
                 )}
                 {speech.error && (
-                  <span className="text-xs text-red-500">{speech.error}</span>
+                  <div className="absolute top-full left-0 mt-2 z-50 w-80 bg-white border border-red-200 rounded-xl shadow-lg p-3">
+                    {speech.error === "MICROPHONE_DENIED" ? (
+                      <>
+                        <p className="text-sm font-semibold text-red-600 mb-1">Microphone access denied</p>
+                        <p className="text-xs text-gray-600">
+                          Your browser blocked microphone access. To fix this:
+                        </p>
+                        <ol className="text-xs text-gray-600 mt-1 list-decimal list-inside space-y-0.5">
+                          <li>Click the <strong>lock / info icon</strong> in the address bar</li>
+                          <li>Set <strong>Microphone</strong> to <em>Allow</em></li>
+                          <li>Reload the page, then try again</li>
+                        </ol>
+                      </>
+                    ) : speech.error === "MICROPHONE_INSECURE" ? (
+                      <>
+                        <p className="text-sm font-semibold text-red-600 mb-1">HTTPS required for voice</p>
+                        <p className="text-xs text-gray-600">
+                          Browsers only allow microphone access on secure (HTTPS) connections.
+                          Voice input is not available over plain HTTP.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-red-500">{speech.error}</p>
+                    )}
+                    <button
+                      onClick={speech.clearError}
+                      className="mt-2 text-xs text-red-400 hover:text-red-600 underline"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
                 )}
               </div>
             )}

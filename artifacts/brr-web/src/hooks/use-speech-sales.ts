@@ -17,6 +17,7 @@ interface SpeechSalesResult {
   start: () => void;
   stop: () => void;
   toggle: () => void;
+  clearError: () => void;
 }
 
 const MONTH_MAP: Record<string, string> = {
@@ -324,6 +325,10 @@ export function useSpeechSales(callbacks: SpeechSalesCallbacks): SpeechSalesResu
       setError("Speech recognition is not supported in this browser.");
       return;
     }
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setError("MICROPHONE_INSECURE");
+      return;
+    }
     if (recognitionRef.current) {
       stop();
     }
@@ -339,7 +344,13 @@ export function useSpeechSales(callbacks: SpeechSalesCallbacks): SpeechSalesResu
       recognitionRef.current = null;
     };
     recognition.onerror = (e: any) => {
-      if (e.error !== "aborted") setError(`Speech error: ${e.error}`);
+      if (e.error === "not-allowed" || e.error === "permission-denied") {
+        setError("MICROPHONE_DENIED");
+      } else if (e.error === "network") {
+        setError("Speech recognition needs an internet connection.");
+      } else if (e.error !== "aborted" && e.error !== "no-speech") {
+        setError(`Speech error: ${e.error}`);
+      }
       setIsListening(false);
     };
 
@@ -378,5 +389,7 @@ export function useSpeechSales(callbacks: SpeechSalesCallbacks): SpeechSalesResu
     else start();
   }, [isListening, start, stop]);
 
-  return { isListening, transcript, lastAction, error, supported, start, stop, toggle };
+  const clearError = useCallback(() => setError(null), []);
+
+  return { isListening, transcript, lastAction, error, supported, start, stop, toggle, clearError };
 }
