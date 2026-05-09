@@ -60,11 +60,46 @@ log "step 5/5: assemble release/ folder"
 # externalized packages like connect-pg-simple, pdf-parse, bcryptjs, etc.).
 # This avoids the problem of externalized packages being unreachable at runtime
 # when the bundle runs outside the monorepo's node_modules tree.
-log "  running pnpm deploy for api-server..."
-pnpm --filter @workspace/api-server deploy --prod --legacy "$RELEASE_DIR/api"
+log "  assembling release/api/ with npm install (pnpm-version-agnostic)..."
+mkdir -p "$RELEASE_DIR/api"
 
-# pnpm deploy copies the package source but not the esbuild output, so copy
-# the compiled bundle on top.
+# Write a clean package.json with exact runtime deps — no workspace: refs
+# so this works with any npm/node version on any machine (EC2, CI, etc.).
+cat > "$RELEASE_DIR/api/package.json" << 'EOF'
+{
+  "name": "brr-api-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node --enable-source-maps ./dist/index.mjs" },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "connect-pg-simple": "^10.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2",
+    "dotenv": "^16.0.0",
+    "drizzle-orm": "^0.36.4",
+    "express": "^5",
+    "express-session": "^1.18.2",
+    "memorystore": "^1.6.7",
+    "multer": "^2.0.2",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
+    "pdf-parse": "^1.1.1",
+    "pg": "^8.16.3",
+    "pino": "^9",
+    "pino-http": "^10",
+    "xlsx": "^0.18.5",
+    "zod": "^3.25.76"
+  }
+}
+EOF
+
+# Install runtime deps using plain npm (works with npm v8+ regardless of pnpm version)
+log "  running npm install --omit=dev in release/api/"
+(cd "$RELEASE_DIR/api" && npm install --omit=dev --no-fund --no-audit 2>&1)
+
+# Copy the compiled esbuild bundle into the release folder
 log "  copying compiled dist/ into release/api/"
 cp -R artifacts/api-server/dist/. "$RELEASE_DIR/api/dist/"
 
