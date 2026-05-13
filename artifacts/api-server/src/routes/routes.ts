@@ -1267,13 +1267,22 @@ export async function registerRoutes(
     }
   });
 
-  app.post(api.sales.bulkUpdate.path, requireAdmin, async (req, res) => {
+  app.post(api.sales.bulkUpdate.path, async (req, res) => {
     try {
       const { rows: input, deleteIds } = api.sales.bulkUpdate.input.parse(req.body);
       const date = req.query.date as string | undefined;
+      const isAdmin = (req.user as any)?.role === "admin";
 
       // Resolve effective date: use provided date or default to today
       const effectiveDate = date || new Date().toISOString().split('T')[0];
+
+      // Employees cannot re-save after a date has been submitted; admins always can.
+      if (!isAdmin) {
+        const alreadySubmitted = await storage.isSalesSubmittedForDate(effectiveDate);
+        if (alreadySubmitted) {
+          return res.status(403).json({ message: "Sales for this date are already submitted and cannot be edited." });
+        }
+      }
 
       // Delete pending-delete rows first (capture their data before deleting for stock revert)
       if (deleteIds && deleteIds.length > 0) {
