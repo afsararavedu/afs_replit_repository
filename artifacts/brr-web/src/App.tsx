@@ -1,5 +1,5 @@
 import { Switch, Route, Redirect, Router as WouterRouter } from "wouter";
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -7,17 +7,24 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
-import NotFound from "@/pages/not-found";
-import Home from "@/pages/Home";
-import Sales from "@/pages/Sales";
-import Stock from "@/pages/Stock";
-import Inventory from "@/pages/Inventory";
-import Reports from "@/pages/Reports";
-import Expenses from "@/pages/Expenses";
+
+// AuthPage and ResetPassword are eagerly loaded — they render before auth
+// resolves and must be available instantly with no additional round-trip.
 import AuthPage from "@/pages/AuthPage";
 import ResetPassword from "@/pages/ResetPassword";
-import AboutUs from "@/pages/AboutUs";
-import ContactUs from "@/pages/ContactUs";
+
+// All protected pages are lazy-loaded so the initial JS bundle only contains
+// the auth/shell code. Vite splits each import() into its own chunk and the
+// browser fetches only what the current route needs.
+const NotFound    = lazy(() => import("@/pages/not-found"));
+const Home        = lazy(() => import("@/pages/Home"));
+const Sales       = lazy(() => import("@/pages/Sales"));
+const Stock       = lazy(() => import("@/pages/Stock"));
+const Inventory   = lazy(() => import("@/pages/Inventory"));
+const Reports     = lazy(() => import("@/pages/Reports"));
+const Expenses    = lazy(() => import("@/pages/Expenses"));
+const AboutUs     = lazy(() => import("@/pages/AboutUs"));
+const ContactUs   = lazy(() => import("@/pages/ContactUs"));
 
 function ProtectedRoute({ component: Component, path, role }: { component: React.ComponentType, path: string, role?: string }) {
   const { user, isLoading } = useAuth();
@@ -44,41 +51,43 @@ function Router() {
         )}
         <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8 overflow-x-hidden">
           <div className="w-full min-w-0">
-            <Switch>
-              <Route path="/auth" component={AuthPage} />
-              <Route path="/reset-password" component={ResetPassword} />
-              
-              <Route path="/">
-                <ProtectedRoute component={Home} path="/" role="admin" />
-              </Route>
-              <Route path="/sales">
-                <ProtectedRoute component={Sales} path="/sales" />
-              </Route>
-              <Route path="/stock">
-                <ProtectedRoute component={Stock} path="/stock" role="admin" />
-              </Route>
-              <Route path="/inventory">
-                <ProtectedRoute component={Inventory} path="/inventory" />
-              </Route>
-              <Route path="/expenses">
-                <ProtectedRoute component={Expenses} path="/expenses" />
-              </Route>
-              <Route path="/reports">
-                <ProtectedRoute component={Reports} path="/reports" role="admin" />
-              </Route>
-              
-              <Route path="/credits" component={() => <div className="p-12 text-center text-muted-foreground">Credits Module Coming Soon</div>} />
-              <Route path="/calendar" component={() => <div className="p-12 text-center text-muted-foreground">Calendar Module Coming Soon</div>} />
-              
-              <Route path="/about">
-                <ProtectedRoute component={AboutUs} path="/about" />
-              </Route>
-              <Route path="/contact">
-                <ProtectedRoute component={ContactUs} path="/contact" />
-              </Route>
-              
-              <Route component={NotFound} />
-            </Switch>
+            <Suspense fallback={<div className="flex items-center justify-center h-64 text-muted-foreground">Loading…</div>}>
+              <Switch>
+                <Route path="/auth" component={AuthPage} />
+                <Route path="/reset-password" component={ResetPassword} />
+
+                <Route path="/">
+                  <ProtectedRoute component={Home} path="/" role="admin" />
+                </Route>
+                <Route path="/sales">
+                  <ProtectedRoute component={Sales} path="/sales" />
+                </Route>
+                <Route path="/stock">
+                  <ProtectedRoute component={Stock} path="/stock" role="admin" />
+                </Route>
+                <Route path="/inventory">
+                  <ProtectedRoute component={Inventory} path="/inventory" />
+                </Route>
+                <Route path="/expenses">
+                  <ProtectedRoute component={Expenses} path="/expenses" />
+                </Route>
+                <Route path="/reports">
+                  <ProtectedRoute component={Reports} path="/reports" role="admin" />
+                </Route>
+
+                <Route path="/credits" component={() => <div className="p-12 text-center text-muted-foreground">Credits Module Coming Soon</div>} />
+                <Route path="/calendar" component={() => <div className="p-12 text-center text-muted-foreground">Calendar Module Coming Soon</div>} />
+
+                <Route path="/about">
+                  <ProtectedRoute component={AboutUs} path="/about" />
+                </Route>
+                <Route path="/contact">
+                  <ProtectedRoute component={ContactUs} path="/contact" />
+                </Route>
+
+                <Route component={NotFound} />
+              </Switch>
+            </Suspense>
           </div>
         </main>
         <footer className="border-t py-3 px-8 text-center text-sm text-muted-foreground" data-testid="footer-copyright">
