@@ -90,12 +90,24 @@ export function setupAuth(app: Express) {
   }
   const secret = envSecret || DEV_SESSION_SECRET_FALLBACK;
 
-  // In production trust the first proxy (nginx) so req.secure reflects
-  // X-Forwarded-Proto correctly. This must be set BEFORE the session
-  // middleware so that `secure:"auto"` can read the forwarded protocol.
+  // Trust the first proxy (nginx/Replit) so req.ip and req.secure are correct.
   if (isProduction) {
     app.set("trust proxy", 1);
   }
+
+  // Cookie security strategy:
+  //   COOKIE_SECURE=true  → always Secure (HTTPS-only, e.g. custom HTTPS EC2)
+  //   COOKIE_SECURE=false → never  Secure (plain HTTP EC2)
+  //   unset               → "auto" (Secure when request arrives over HTTPS,
+  //                          not Secure when HTTP — works for Replit + nginx)
+  //
+  // For plain-HTTP EC2 with nginx: set COOKIE_SECURE=false in /etc/brr/brr-api.env
+  // For Replit production (HTTPS proxy): leave unset — "auto" handles it.
+  const rawCookieSecure = process.env.COOKIE_SECURE;
+  const cookieSecure: boolean | "auto" =
+    rawCookieSecure === "true"  ? true  :
+    rawCookieSecure === "false" ? false :
+    isProduction                ? "auto": false;
 
   const sessionSettings: session.SessionOptions = {
     secret,
@@ -105,24 +117,14 @@ export function setupAuth(app: Express) {
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       httpOnly: true,
-      // "auto" = mark the cookie Secure only when the actual request is HTTPS
-      // (detected via X-Forwarded-Proto thanks to trust proxy above).
-      // This means:
-      //   - Replit / HTTPS deployments  → Secure flag ON  (browser keeps cookie)
-      //   - EC2 plain-HTTP deployments  → Secure flag OFF (browser keeps cookie)
-      // No COOKIE_SECURE env var needed.
-      secure: isProduction ? "auto" : false,
+      secure: cookieSecure,
       sameSite: "lax",
     },
   };
 
   logger.info(
-    {
-      isProduction,
-      cookieSecure: isProduction ? "auto" : false,
-      trustProxy: isProduction ? 1 : false,
-    },
-    "Session cookie settings",
+    { isProduction, cookieSecure, COOKIE_SECURE: rawCookieSecure ?? "(unset)" },
+    "Session cookie settings — if EC2 gets 401 after login set COOKIE_SECURE=false in /etc/brr/brr-api.env",
   );
 
   app.use(session(sessionSettings));
