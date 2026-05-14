@@ -2,7 +2,7 @@ import { createServer } from "http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { registerRoutes } from "./routes/routes";
-import { db, DB_SCHEMA } from "./db";
+import { db, pool, DB_SCHEMA } from "./db";
 import { sql } from "drizzle-orm";
 import type { Request, Response, NextFunction } from "express";
 

@@ -43,6 +43,18 @@ export const requireAuth: RequestHandler = (req, res, next) => {
   if (req.isAuthenticated()) {
     return next();
   }
+  // Diagnostic: log exactly why auth failed so EC2 journalctl shows the cause.
+  // hasCookie   → browser sent a cookie header (cookie WAS set by login)
+  // sessionID   → the session ID express-session read from the cookie
+  // hasPassport → session row exists in DB but passport user is missing
+  // If hasCookie=false, the login response never set Set-Cookie (session-store
+  // failed to save — look for "[session-store] ERROR" lines above in the log).
+  // If hasCookie=true but hasPassport=false, the session row is missing or empty.
+  req.log?.warn({
+    hasCookie:   !!(req.headers.cookie),
+    sessionID:   req.sessionID ?? "(none)",
+    hasPassport: !!((req.session as Record<string, unknown>)?.passport),
+  }, "requireAuth: unauthenticated — check [session-store] ERROR lines if hasCookie=false");
   return res.status(401).json({ message: "Unauthorized" });
 };
 

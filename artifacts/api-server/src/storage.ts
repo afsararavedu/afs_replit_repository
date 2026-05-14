@@ -130,10 +130,23 @@ export class DatabaseStorage implements IStorage {
     //     to create/query the session table in the "public" schema, which
     //     causes silent session-save failures → 401 on every request after
     //     a successful login.
-    this.sessionStore = new PostgresSessionStore({
+    const store = new PostgresSessionStore({
       pool,
       createTableIfMissing: true,
     });
+
+    // express-session silently swallows store errors by default.
+    // Surfacing them here means "session save failed → 401 on all requests"
+    // becomes visible immediately in the server log instead of being a
+    // mystery.  The most common cause on EC2 is the schema not existing yet
+    // (DB_SCHEMA=balaji_schema but CREATE SCHEMA was never run) or a DB
+    // credential / network issue.
+    store.on("error", (err: Error) => {
+      // eslint-disable-next-line no-console
+      console.error("[session-store] ERROR — sessions cannot be saved, every request will return 401:", err.message);
+    });
+
+    this.sessionStore = store;
   }
 
   // User methods
