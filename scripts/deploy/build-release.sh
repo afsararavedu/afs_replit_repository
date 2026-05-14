@@ -37,8 +37,15 @@ log "wiping previous release/ directory"
 rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR/web"
 
-log "step 1/5: pnpm install --frozen-lockfile"
-pnpm install --frozen-lockfile
+log "step 1/5: pnpm install"
+# Try frozen first (good for CI). Fall back to a regular install if the
+# lockfile format is incompatible with the installed pnpm version — this
+# happens on EC2 when the pnpm version is older than the one that wrote
+# the lockfile (e.g. pnpm v9 can't parse minimumReleaseAge from v10).
+if ! pnpm install --frozen-lockfile 2>/dev/null; then
+  log "  frozen-lockfile failed (pnpm version mismatch?) — retrying without --frozen-lockfile"
+  pnpm install --no-frozen-lockfile
+fi
 
 log "step 2/5: regenerate API client + zod schemas from OpenAPI spec"
 pnpm --filter @workspace/api-spec run codegen
