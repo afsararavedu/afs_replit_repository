@@ -33,19 +33,22 @@ if ! command -v pnpm >/dev/null 2>&1; then
   exit 1
 fi
 
+# pnpm-workspace.yaml uses onlyBuiltDependencies (introduced in pnpm v10).
+# Older pnpm versions skip esbuild's install script → no binary → build fails.
+# Auto-upgrade to the latest pnpm when the installed major version is < 10.
+PNPM_MAJOR=$(pnpm --version 2>/dev/null | cut -d. -f1)
+if [ "${PNPM_MAJOR:-0}" -lt 10 ]; then
+  log "pnpm v${PNPM_MAJOR} detected (need v10+) — upgrading via npm install -g"
+  npm install -g pnpm@latest
+  log "pnpm upgraded to $(pnpm --version)"
+fi
+
 log "wiping previous release/ directory"
 rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR/web"
 
 log "step 1/5: pnpm install"
-# Try frozen first (good for CI). Fall back to a regular install if the
-# lockfile format is incompatible with the installed pnpm version — this
-# happens on EC2 when the pnpm version is older than the one that wrote
-# the lockfile (e.g. pnpm v9 can't parse minimumReleaseAge from v10).
-if ! pnpm install --frozen-lockfile 2>/dev/null; then
-  log "  frozen-lockfile failed (pnpm version mismatch?) — retrying without --frozen-lockfile"
-  pnpm install --no-frozen-lockfile
-fi
+pnpm install --frozen-lockfile
 
 log "step 2/5: regenerate API client + zod schemas from OpenAPI spec"
 pnpm --filter @workspace/api-spec run codegen
