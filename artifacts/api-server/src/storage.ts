@@ -121,6 +121,7 @@ export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
+    const dbSchema = process.env.DB_SCHEMA || "public";
     this.sessionStore = new PostgresSessionStore({
       conObject: {
         connectionString: process.env.DATABASE_URL,
@@ -128,6 +129,8 @@ export class DatabaseStorage implements IStorage {
           rejectUnauthorized: false,
         },
       },
+      // Store the session table in the same schema as the rest of the app.
+      schemaName: dbSchema,
       createTableIfMissing: true,
     });
   }

@@ -2,7 +2,7 @@ import { createServer } from "http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { registerRoutes } from "./routes/routes";
-import { db } from "./db";
+import { db, DB_SCHEMA } from "./db";
 import { sql } from "drizzle-orm";
 import type { Request, Response, NextFunction } from "express";
 
@@ -37,6 +37,8 @@ if (nodeEnv === "production" && !process.env["SESSION_SECRET"]) {
 }
 
 const httpServer = createServer(app);
+
+logger.info({ DB_SCHEMA }, "Active database schema (search_path)");
 
 (async () => {
   try {
