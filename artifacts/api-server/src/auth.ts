@@ -90,6 +90,13 @@ export function setupAuth(app: Express) {
   }
   const secret = envSecret || DEV_SESSION_SECRET_FALLBACK;
 
+  // In production trust the first proxy (nginx) so req.secure reflects
+  // X-Forwarded-Proto correctly. This must be set BEFORE the session
+  // middleware so that `secure:"auto"` can read the forwarded protocol.
+  if (isProduction) {
+    app.set("trust proxy", 1);
+  }
+
   const sessionSettings: session.SessionOptions = {
     secret,
     resave: false,
@@ -98,16 +105,25 @@ export function setupAuth(app: Express) {
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
       httpOnly: true,
-      // Default: secure in production (HTTPS). Set COOKIE_SECURE=false in
-      // brr-api.env when running behind HTTP-only nginx (no TLS termination).
-      secure: isProduction && process.env.COOKIE_SECURE !== "false",
+      // "auto" = mark the cookie Secure only when the actual request is HTTPS
+      // (detected via X-Forwarded-Proto thanks to trust proxy above).
+      // This means:
+      //   - Replit / HTTPS deployments  → Secure flag ON  (browser keeps cookie)
+      //   - EC2 plain-HTTP deployments  → Secure flag OFF (browser keeps cookie)
+      // No COOKIE_SECURE env var needed.
+      secure: isProduction ? "auto" : false,
       sameSite: "lax",
     },
   };
 
-  if (isProduction) {
-    app.set("trust proxy", 1);
-  }
+  logger.info(
+    {
+      isProduction,
+      cookieSecure: isProduction ? "auto" : false,
+      trustProxy: isProduction ? 1 : false,
+    },
+    "Session cookie settings",
+  );
 
   app.use(session(sessionSettings));
   app.use(passport.initialize());
