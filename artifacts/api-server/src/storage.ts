@@ -121,16 +121,17 @@ export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
-    const dbSchema = process.env.DB_SCHEMA || "public";
+    // Use the shared pool (not a separate conObject) so the session store
+    // inherits the search_path that pool.on("connect") sets for every
+    // connection. This means:
+    //   • createTableIfMissing creates "session" inside the right schema
+    //     automatically — no explicit schemaName qualification needed.
+    //   • A separate conObject would bypass the search_path hook and try
+    //     to create/query the session table in the "public" schema, which
+    //     causes silent session-save failures → 401 on every request after
+    //     a successful login.
     this.sessionStore = new PostgresSessionStore({
-      conObject: {
-        connectionString: process.env.DATABASE_URL,
-        ssl: {
-          rejectUnauthorized: false,
-        },
-      },
-      // Store the session table in the same schema as the rest of the app.
-      schemaName: dbSchema,
+      pool,
       createTableIfMissing: true,
     });
   }
