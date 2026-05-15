@@ -18,11 +18,11 @@
  *   ExecStartPre=/usr/bin/node /opt/brr/repo/scripts/deploy/migrate.mjs
  */
 
-import { execSync }     from "child_process";
-import { createRequire } from "module";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
-import { readFileSync }   from "fs";
+import { execSync }          from "child_process";
+import { createRequire }      from "module";
+import { fileURLToPath }      from "url";
+import { dirname, join }      from "path";
+import { readFileSync, existsSync } from "fs";
 
 const __dirname  = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT  = join(__dirname, "../..");
@@ -106,6 +106,25 @@ try {
 const drizzleKit = join(REPO_ROOT, "node_modules/.bin/drizzle-kit");
 const configFile = join(REPO_ROOT, "lib/db/drizzle.config.ts");
 const libDbDir   = join(REPO_ROOT, "lib/db");
+
+// drizzle-kit is a devDependency — it is present after a full `pnpm install`
+// but absent when only `pnpm install --prod` was run (e.g. a fresh EC2 box
+// that hasn't built yet). Install the workspace deps now if the binary is
+// missing so the push can proceed.
+if (!existsSync(drizzleKit)) {
+  console.log(
+    "[migrate] drizzle-kit not found — running pnpm install to fetch dev deps...",
+  );
+  try {
+    execSync("pnpm install --frozen-lockfile", {
+      cwd:   REPO_ROOT,
+      stdio: "inherit",
+    });
+  } catch (err) {
+    console.error("[migrate] pnpm install failed:", err.message);
+    process.exit(1);
+  }
+}
 
 try {
   execSync(
