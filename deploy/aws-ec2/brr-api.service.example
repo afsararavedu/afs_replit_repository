@@ -34,6 +34,15 @@ Type=simple
 # the persistent node_modules. ExecStart points at the bundle, which is what
 # actually changes between releases.
 WorkingDirectory=/opt/brr/repo/artifacts/api-server
+
+# ── Auto-migration ─────────────────────────────────────────────────────────────
+# Runs before the server starts on every boot/restart.
+# Checks whether the database tables already exist (fast no-op if they do)
+# and creates them via drizzle-kit push --force if they don't.
+# This means you never have to run `drizzle-kit push` manually after a fresh
+# deploy — the service takes care of it automatically.
+ExecStartPre=/usr/bin/node /opt/brr/repo/scripts/deploy/migrate.mjs
+
 ExecStart=/usr/bin/node --enable-source-maps /opt/brr/repo/release/api/dist/index.mjs
 
 EnvironmentFile=/etc/brr/brr-api.env
