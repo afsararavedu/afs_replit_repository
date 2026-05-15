@@ -113,6 +113,11 @@ log "  running npm install --omit=dev in release/api/"
 log "  copying compiled dist/ into release/api/"
 cp -R artifacts/api-server/dist/. "$RELEASE_DIR/api/dist/"
 
+# Copy committed SQL migration files so the api-server can apply them at
+# startup via drizzle-orm's migrate() — drizzle-kit is NOT needed on EC2.
+log "  copying lib/db/migrations/ into release/api/migrations/"
+cp -R lib/db/migrations/. "$RELEASE_DIR/api/migrations/"
+
 # web: vite outputs to artifacts/brr-web/dist/public
 cp -R artifacts/brr-web/dist/public/. "$RELEASE_DIR/web/"
 

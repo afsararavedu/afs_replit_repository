@@ -35,14 +35,9 @@ Type=simple
 # actually changes between releases.
 WorkingDirectory=/opt/brr/repo/artifacts/api-server
 
-# ── Auto-migration ─────────────────────────────────────────────────────────────
-# Runs before the server starts on every boot/restart.
-# Checks whether the database tables already exist (fast no-op if they do)
-# and creates them via drizzle-kit push --force if they don't.
-# This means you never have to run `drizzle-kit push` manually after a fresh
-# deploy — the service takes care of it automatically.
-ExecStartPre=/usr/bin/node /opt/brr/repo/scripts/deploy/migrate.mjs
-
+# Auto-migration is handled inside the api-server itself (db.ts top-level
+# await runs drizzle-orm migrate() on every startup from the committed SQL
+# files bundled at release/api/migrations/). No ExecStartPre needed.
 ExecStart=/usr/bin/node --enable-source-maps /opt/brr/repo/release/api/dist/index.mjs
 
 EnvironmentFile=/etc/brr/brr-api.env

@@ -21,6 +21,10 @@ function buildConnectionString(base: string, dbSchema: string): string {
 
 export default defineConfig({
   schema: path.join(__dirname, "./src/schema/index.ts"),
+  // Migration SQL files are written here by `drizzle-kit generate` and read
+  // by drizzle-orm's migrate() in the api-server at startup. Committing these
+  // files means drizzle-kit is only needed locally/in CI, never on EC2.
+  out: path.join(__dirname, "./migrations"),
   dialect: "postgresql",
   dbCredentials: {
     url: buildConnectionString(process.env.DATABASE_URL, DB_SCHEMA),

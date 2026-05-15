@@ -1,8 +1,12 @@
 
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import * as schema from "@workspace/db";
+import { existsSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
 const { Pool, Client } = pg;
 
@@ -45,15 +49,9 @@ if (DB_SCHEMA !== "public") {
     // eslint-disable-next-line no-console
     console.info(`[db] Schema "${DB_SCHEMA}" is ready.`);
   } catch (err: unknown) {
-    // Log but do not crash — if the schema already exists this will not fire.
-    // If the DB user lacks CREATE SCHEMA privileges the app will still start
-    // but the operator must pre-create the schema manually.
     const msg = err instanceof Error ? err.message : String(err);
     // eslint-disable-next-line no-console
     console.error(`[db] Could not create schema "${DB_SCHEMA}": ${msg}`);
-    console.error(
-      `[db] If this is a permissions error, run:  CREATE SCHEMA IF NOT EXISTS "${DB_SCHEMA}";  as a superuser, then restart.`,
-    );
   } finally {
     await bootstrapClient.end().catch(() => {});
   }
@@ -95,3 +93,43 @@ pool.on("error", (err) => {
 });
 
 export const db = drizzle(pool, { schema });
+
+// ── Auto-migration (top-level await) ──────────────────────────────────────────
+//
+// Applies any pending SQL migration files from lib/db/migrations/ using
+// drizzle-orm's built-in migrator. This is idempotent: already-applied
+// migrations are tracked in __drizzle_migrations and skipped on re-runs.
+//
+// On EC2 (production): migrations live at ../migrations relative to the
+//   esbuild bundle (dist/index.mjs → release/api/dist → release/api/migrations).
+// In development (tsx): falls back to ../../lib/db/migrations relative to
+//   the TypeScript source file (artifacts/api-server/src/db.ts).
+//
+// drizzle-kit is NOT needed at runtime — only the committed .sql files are.
+{
+  const here = dirname(fileURLToPath(import.meta.url));
+  const prodMigrationsDir = join(here, "../migrations");          // EC2 bundle
+  const devMigrationsDir  = join(here, "../../lib/db/migrations"); // dev / tsx
+
+  const migrationsDir = existsSync(prodMigrationsDir) ? prodMigrationsDir
+                      : existsSync(devMigrationsDir)  ? devMigrationsDir
+                      : null;
+
+  if (migrationsDir) {
+    try {
+      await migrate(db, { migrationsFolder: migrationsDir });
+      // eslint-disable-next-line no-console
+      console.info(`[db] Migrations applied from ${migrationsDir}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // eslint-disable-next-line no-console
+      console.error(`[db] Migration failed: ${msg}`);
+      // Do not crash — a partial schema is better than no server.
+      // The seed step below will surface concrete errors if tables are missing.
+    }
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn("[db] No migrations folder found — skipping auto-migrate.");
+  }
+}
+// ──────────────────────────────────────────────────────────────────────────────

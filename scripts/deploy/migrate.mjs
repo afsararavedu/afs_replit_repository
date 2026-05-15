@@ -1,31 +1,35 @@
 #!/usr/bin/env node
 /**
- * migrate.mjs — Auto-create database tables for BRR Liquor Soft.
+ * migrate.mjs — Apply database migrations for BRR Liquor Soft.
  *
- * Checks whether the application tables already exist in the configured
- * schema. If they do, exits immediately (< 200 ms) — safe to run on
- * every service restart. If they don't, runs `drizzle-kit push --force`
- * to create them from the Drizzle schema definition.
+ * Reads the committed SQL files from lib/db/migrations/ and applies any
+ * that have not yet been recorded in __drizzle_migrations. This is the
+ * same table that drizzle-orm's migrate() function uses, so the two are
+ * fully compatible — whichever runs first wins, and the other is a no-op.
+ *
+ * WHY NOT drizzle-kit: drizzle-kit is a devDependency that cannot be assumed
+ * to exist on EC2. The committed .sql files in lib/db/migrations/ ARE the
+ * source of truth; drizzle-kit is only needed locally to generate them.
  *
  * Environment variables (read from /etc/brr/brr-api.env if not already set):
  *   DATABASE_URL  — PostgreSQL connection string
  *   DB_SCHEMA     — target schema name (default: public)
  *
- * Usage (manual / CI):
+ * Usage (manual / emergency):
  *   node scripts/deploy/migrate.mjs
  *
- * Usage (automated via systemd ExecStartPre — env already injected):
- *   ExecStartPre=/usr/bin/node /opt/brr/repo/scripts/deploy/migrate.mjs
+ * Normal operation: the api-server applies migrations automatically on every
+ * startup via drizzle-orm's migrate() — you rarely need this script directly.
  */
 
-import { execSync }          from "child_process";
-import { createRequire }      from "module";
-import { fileURLToPath }      from "url";
-import { dirname, join }      from "path";
-import { readFileSync, existsSync } from "fs";
+import { createRequire }                   from "module";
+import { fileURLToPath }                    from "url";
+import { dirname, join, basename }          from "path";
+import { readFileSync, readdirSync, existsSync } from "fs";
+import { createHash }                       from "crypto";
 
-const __dirname  = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT  = join(__dirname, "../..");
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = join(__dirname, "../..");
 
 // ── 1. Load env from /etc/brr/brr-api.env when vars are not already set ──────
 if (!process.env.DATABASE_URL) {
@@ -41,7 +45,7 @@ if (!process.env.DATABASE_URL) {
       if (!process.env[key]) process.env[key] = val;
     }
   } catch {
-    // env file absent — env vars must be set by the caller (e.g. systemd)
+    // env file absent — env vars must be set by caller
   }
 }
 
@@ -53,7 +57,7 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-// ── 2. Connect to DB (reuse pg from api-server's already-installed deps) ──────
+// ── 2. Connect to DB ──────────────────────────────────────────────────────────
 const require = createRequire(
   join(REPO_ROOT, "artifacts/api-server/package.json"),
 );
@@ -74,71 +78,101 @@ const client = new Client({
 
 try {
   await client.connect();
-
-  // Ensure the schema exists (idempotent).
-  await client.query(`CREATE SCHEMA IF NOT EXISTS "${DB_SCHEMA}"`);
-
-  // Check whether our anchor table ("users") already exists.
-  const { rows } = await client.query(
-    `SELECT 1 FROM information_schema.tables
-      WHERE table_schema = $1 AND table_name = 'users'`,
-    [DB_SCHEMA],
-  );
-
-  if (rows.length > 0) {
-    console.log(
-      `[migrate] Schema "${DB_SCHEMA}" already has tables — skipping push.`,
-    );
-    process.exit(0);
-  }
-
-  console.log(
-    `[migrate] No tables found in schema "${DB_SCHEMA}" — running drizzle-kit push...`,
-  );
 } catch (err) {
-  console.error("[migrate] DB probe failed:", err.message);
+  console.error("[migrate] Could not connect to DB:", err.message);
   process.exit(1);
-} finally {
-  await client.end().catch(() => {});
 }
 
-// ── 3. Create tables via drizzle-kit push ─────────────────────────────────────
-const drizzleKit = join(REPO_ROOT, "node_modules/.bin/drizzle-kit");
-const configFile = join(REPO_ROOT, "lib/db/drizzle.config.ts");
-const libDbDir   = join(REPO_ROOT, "lib/db");
+// ── 3. Ensure schema exists ───────────────────────────────────────────────────
+try {
+  await client.query(`CREATE SCHEMA IF NOT EXISTS "${DB_SCHEMA}"`);
+  console.log(`[migrate] Schema "${DB_SCHEMA}" is ready.`);
+} catch (err) {
+  console.error("[migrate] Could not create schema:", err.message);
+  await client.end().catch(() => {});
+  process.exit(1);
+}
 
-// drizzle-kit is a devDependency — it is present after a full `pnpm install`
-// but absent when only `pnpm install --prod` was run (e.g. a fresh EC2 box
-// that hasn't built yet). Install the workspace deps now if the binary is
-// missing so the push can proceed.
-if (!existsSync(drizzleKit)) {
-  console.log(
-    "[migrate] drizzle-kit not found — running pnpm install to fetch dev deps...",
-  );
+// ── 4. Ensure drizzle migrations tracking table exists ───────────────────────
+// This is the same table drizzle-orm's migrate() function uses — compatible.
+await client.query(`
+  CREATE TABLE IF NOT EXISTS "__drizzle_migrations" (
+    id        serial PRIMARY KEY,
+    hash      text NOT NULL,
+    created_at bigint
+  )
+`);
+
+// ── 5. Read committed SQL files ───────────────────────────────────────────────
+const migrationsDir = join(REPO_ROOT, "lib/db/migrations");
+if (!existsSync(migrationsDir)) {
+  console.error(`[migrate] Migrations folder not found at ${migrationsDir}`);
+  console.error("[migrate] Run: pnpm --filter @workspace/db run generate");
+  await client.end().catch(() => {});
+  process.exit(1);
+}
+
+const sqlFiles = readdirSync(migrationsDir)
+  .filter((f) => f.endsWith(".sql"))
+  .sort();
+
+if (sqlFiles.length === 0) {
+  console.log("[migrate] No SQL migration files found — nothing to apply.");
+  await client.end().catch(() => {});
+  process.exit(0);
+}
+
+// ── 6. Apply pending migrations ───────────────────────────────────────────────
+const { rows: applied } = await client.query(
+  `SELECT hash FROM "__drizzle_migrations"`,
+);
+const appliedHashes = new Set(applied.map((r) => r.hash));
+
+let appliedCount = 0;
+
+for (const file of sqlFiles) {
+  const sql  = readFileSync(join(migrationsDir, file), "utf8");
+  const hash = createHash("sha256").update(sql).digest("hex");
+
+  if (appliedHashes.has(hash)) {
+    console.log(`[migrate] ✓ Already applied: ${file}`);
+    continue;
+  }
+
+  console.log(`[migrate] Applying: ${file} …`);
+
+  // drizzle uses "--> statement-breakpoint" as the separator between statements
+  const statements = sql
+    .split("--> statement-breakpoint")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   try {
-    execSync("pnpm install --frozen-lockfile", {
-      cwd:   REPO_ROOT,
-      stdio: "inherit",
-    });
+    await client.query("BEGIN");
+    for (const stmt of statements) {
+      await client.query(stmt);
+    }
+    await client.query(
+      `INSERT INTO "__drizzle_migrations" (hash, created_at) VALUES ($1, $2)`,
+      [hash, Date.now()],
+    );
+    await client.query("COMMIT");
+    appliedCount++;
+    console.log(`[migrate] ✓ Applied: ${file}`);
   } catch (err) {
-    console.error("[migrate] pnpm install failed:", err.message);
+    await client.query("ROLLBACK").catch(() => {});
+    console.error(`[migrate] ✗ Failed: ${file} — ${err.message}`);
+    await client.end().catch(() => {});
     process.exit(1);
   }
 }
 
-try {
-  execSync(
-    `"${drizzleKit}" push --force --config "${configFile}"`,
-    {
-      cwd:   libDbDir,
-      env:   { ...process.env, DATABASE_URL, DB_SCHEMA },
-      stdio: "inherit",
-    },
-  );
+await client.end().catch(() => {});
+
+if (appliedCount === 0) {
+  console.log(`[migrate] Schema "${DB_SCHEMA}" is already up to date.`);
+} else {
   console.log(
-    `[migrate] Tables created successfully in schema "${DB_SCHEMA}".`,
+    `[migrate] Done. Applied ${appliedCount} migration(s) to schema "${DB_SCHEMA}".`,
   );
-} catch (err) {
-  console.error("[migrate] drizzle-kit push failed:", err.message);
-  process.exit(1);
 }
