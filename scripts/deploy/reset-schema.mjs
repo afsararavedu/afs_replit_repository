@@ -12,10 +12,21 @@
  *
  * WARNING: ALL DATA in the named schema is permanently deleted.
  * Run db-snapshot.sh first if you need a backup.
+ *
+ * NOTE: pg is resolved from artifacts/api-server/node_modules so no extra
+ * pnpm install step is needed on the EC2 box.
  */
 
-import pg from "pg";
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
+// Resolve pg from api-server's node_modules (already installed on EC2).
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(
+  join(__dirname, "../../artifacts/api-server/package.json"),
+);
+const pg = require("pg");
 const { Client } = pg;
 
 const schema = process.env.DB_SCHEMA;
@@ -34,7 +45,10 @@ if (schema === "public") {
 console.log(`\nThis will DROP and RECREATE the schema: ${schema}`);
 console.log("ALL DATA in that schema will be permanently deleted.\n");
 
-const client = new Client({ connectionString: url, ssl: { rejectUnauthorized: false } });
+const client = new Client({
+  connectionString: url,
+  ssl: { rejectUnauthorized: false },
+});
 
 try {
   await client.connect();
@@ -45,7 +59,9 @@ try {
   console.log(`Creating schema "${schema}"...`);
   await client.query(`CREATE SCHEMA "${schema}"`);
 
-  console.log(`\nDone. Schema "${schema}" is empty and ready for drizzle-kit push.\n`);
+  console.log(
+    `\nDone. Schema "${schema}" is empty and ready for drizzle-kit push.\n`,
+  );
 } catch (err) {
   console.error("ERROR:", err.message);
   process.exit(1);
