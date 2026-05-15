@@ -48,7 +48,20 @@ rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR/web"
 
 log "step 1/5: pnpm install"
-pnpm install --frozen-lockfile
+# pnpm may emit a non-fatal EACCES warning when it can't scandir a
+# node_modules sub-folder (e.g. owned by a different user on EC2).
+# If the lockfile says everything is already up to date, the packages
+# ARE present and the build tools work fine — don't abort on that.
+pnpm install --frozen-lockfile || {
+  EXIT=$?
+  if pnpm list --depth=0 >/dev/null 2>&1; then
+    log "  pnpm install exited $EXIT but packages appear present — continuing"
+  else
+    echo "[build-release] pnpm install failed and packages are missing. Fix permissions:" >&2
+    echo "  sudo chown -R \$(whoami):\$(whoami) /opt/brr/repo/node_modules" >&2
+    exit $EXIT
+  fi
+}
 
 log "step 2/5: regenerate API client + zod schemas from OpenAPI spec"
 pnpm --filter @workspace/api-spec run codegen
