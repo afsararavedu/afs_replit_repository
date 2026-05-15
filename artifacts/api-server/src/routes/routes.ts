@@ -2006,29 +2006,14 @@ export async function registerRoutes(
   return httpServer;
 }
 
-// Bootstraps an initial admin account ONLY if no admin user exists yet in
-// the database. The previous implementation seeded `admin / admin123` and
-// `employee / employee123` on every startup, which meant any deployed
-// instance shipped with publicly-known credentials and was a one-step
-// account takeover.
-//
-// New behaviour:
-// - Never seed an "employee" account. Employees must be created by an
-//   authenticated admin from inside the app.
-// - For the admin: only create one when no admin currently exists. The
-//   password is taken from the `ADMIN_BOOTSTRAP_PASSWORD` env var if set,
-//   otherwise a strong random password is generated and printed once to
-//   the server logs so the operator can capture it.
-// - The bootstrapped admin is created with `mustResetPassword: false` so
-//   it is immediately usable. The operator can change the password any
-//   time from the sidebar Reset Password button.
-// - Any pre-existing user (created by the old seed code in a previous
-//   deployment) whose password still matches a publicly-known default
-//   gets that password forcibly rotated on startup, so we cannot leave
-//   a well-known credential live anywhere.
+// Bootstraps the canonical application users on first startup.
+// Each entry is created only if that username does not already exist —
+// the seed is fully idempotent and safe to run on every restart.
+// Passwords are fixed per-deployment (set here); operators should change
+// them after first login using the in-app Reset Password feature.
 async function seedDatabase() {
-  // Ensure the three canonical application users exist with their fixed passwords.
-  // If a user already exists it is left untouched; this seed is idempotent.
+  // Canonical users for this deployment. Each is only created once.
+  // If the user already exists (by username) it is left completely untouched.
   const SEED_USERS: Array<{ username: string; password: string; role: "admin" | "employee" }> = [
     { username: "balajiadmin",    password: "Brr@2026",      role: "admin"    },
     { username: "balajisaleman",  password: "BrrSales@2026", role: "employee" },
