@@ -149,6 +149,8 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   role: text("role", { enum: ["admin", "employee"] }).notNull().default("employee"),
+  tempPassword: text("temp_password"),
+  mustResetPassword: boolean("must_reset_password").default(false),
   passwordChangedAt: timestamp("password_changed_at").notNull().defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
 });
