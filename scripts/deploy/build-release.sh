@@ -48,17 +48,21 @@ rm -rf "$RELEASE_DIR"
 mkdir -p "$RELEASE_DIR/web"
 
 log "step 1/5: pnpm install"
-# pnpm may emit a non-fatal EACCES warning when it can't scandir a
-# node_modules sub-folder (e.g. owned by a different user on EC2).
-# If the lockfile says everything is already up to date, the packages
-# ARE present and the build tools work fine — don't abort on that.
+# pnpm may exit non-zero with an EACCES warning when it can't scandir a
+# node_modules sub-folder (e.g. owned by root because pnpm was run as root
+# once, or the pnpm store lives in /root/.local/share/pnpm).
+# The packages ARE present when the lockfile is up to date, so we only
+# abort if the esbuild binary — the only build tool this script needs —
+# is actually missing.
 pnpm install --frozen-lockfile || {
   EXIT=$?
-  if pnpm list --depth=0 >/dev/null 2>&1; then
-    log "  pnpm install exited $EXIT but packages appear present — continuing"
+  ESBUILD_BIN="$REPO_ROOT/node_modules/.bin/esbuild"
+  if [ -x "$ESBUILD_BIN" ]; then
+    log "  pnpm install exited $EXIT (likely a store EACCES) but esbuild is present — continuing"
   else
-    echo "[build-release] pnpm install failed and packages are missing. Fix permissions:" >&2
-    echo "  sudo chown -R \$(whoami):\$(whoami) /opt/brr/repo/node_modules" >&2
+    echo "[build-release] pnpm install failed and esbuild is missing." >&2
+    echo "  Fix ownership then retry:" >&2
+    echo "    sudo chown -R \$(whoami):\$(whoami) /opt/brr/repo" >&2
     exit $EXIT
   fi
 }
