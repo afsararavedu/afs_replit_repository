@@ -218,24 +218,32 @@ async function parsePdfInvoice(
   // live pdfjs PageProxy from pdf-parse's own bundled pdfjs copy.
   let allText = "";
   async function renderPage(pageData: any): Promise<string> {
-    const content = await pageData.getTextContent({ includeMarkedContent: false });
+    // Use options compatible with pdf-parse v1.1.1's bundled pdfjs (v1.x/v2.x).
+    // `includeMarkedContent` was added in pdfjs v2.4+ and is not recognised here.
+    const content = await pageData.getTextContent({
+      normalizeWhitespace: false,
+      disableCombineTextItems: false,
+    });
     let prevY: number | null = null;
     let line = "";
     for (const item of content.items as any[]) {
-      if (!("str" in item)) continue;
-      const y = Math.round(item.transform[5]);
+      if (typeof (item as any).str !== "string") continue;
+      const y = Math.round((item as any).transform[5]);
       if (prevY !== null && Math.abs(y - prevY) > 1) {
         if (line.trim()) allText += line.trim() + "\n";
         line = "";
       }
-      line += item.str;
+      line += (item as any).str;
       prevY = y;
     }
     if (line.trim()) allText += line.trim() + "\n";
+    // Return empty string — we collect text via closure, not via pdf-parse's accumulator.
     return "";
   }
 
   await pdfParse(buffer, { pagerender: renderPage });
+  // eslint-disable-next-line no-console
+  console.log(`[PDF] extracted ${allText.split("\n").length} lines, ${allText.length} chars`);
 
   const lines = allText
     .split("\n")
