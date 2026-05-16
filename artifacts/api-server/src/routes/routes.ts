@@ -203,28 +203,20 @@ function parseSpreadsheet(buffer: Buffer, filename: string) {
 async function parsePdfInvoice(
   buffer: Buffer,
 ): Promise<{ orders: (typeof EMPTY_ORDER)[]; shopDetail: Record<string, string> | null }> {
-  // Load pdfjs-dist dynamically so esbuild externalises it (avoids bundling the
-  // 5 MB PDF engine into the single-file bundle).  Use the legacy/ build which
-  // is the correct entry point for Node.js environments across all pdfjs-dist
-  // versions (v2–v5).  The non-legacy build is browser-only and prints a
-  // warning + may fail in Node.js.
-  const { createRequire } = await import("node:module");
-  const _require = createRequire(import.meta.url);
-  const pdfjsPath  = _require.resolve("pdfjs-dist/legacy/build/pdf.mjs");
-  const workerPath = _require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
-  const pdfjs = await import(pdfjsPath);
-  pdfjs.GlobalWorkerOptions.workerSrc = `file://${workerPath}`;
+  // Use pdf-parse with a custom pagerender callback so we get the full pdfjs
+  // PageProxy (and can call getTextContent) while letting pdf-parse handle
+  // all Node.js polyfills (DOMMatrix, canvas, etc.) internally.
+  // pdfjs-dist is NOT loaded directly here — that avoids the "DOMMatrix is
+  // not defined" / "use legacy build" errors that arise when loading pdfjs
+  // outside its bundled shim environment.
+  const pdfParse = (await import("pdf-parse")).default;
 
-  const loadingTask = pdfjs.getDocument({ data: new Uint8Array(buffer), useSystemFonts: true });
-  const doc = await loadingTask.promise;
-
-  // Extract text in natural content-stream order (left→right within each Y band,
-  // top→bottom page by page). This keeps each PDF row's numbers as continuation
-  // lines that the parser's multi-line joiner picks up correctly.
+  // Extract text in natural content-stream order (left→right within each
+  // Y band, top→bottom page by page). The pagerender callback receives the
+  // live pdfjs PageProxy from pdf-parse's own bundled pdfjs copy.
   let allText = "";
-  for (let p = 1; p <= doc.numPages; p++) {
-    const page = await doc.getPage(p);
-    const content = await page.getTextContent({ includeMarkedContent: false } as any);
+  async function renderPage(pageData: any): Promise<string> {
+    const content = await pageData.getTextContent({ includeMarkedContent: false });
     let prevY: number | null = null;
     let line = "";
     for (const item of content.items as any[]) {
@@ -238,9 +230,10 @@ async function parsePdfInvoice(
       prevY = y;
     }
     if (line.trim()) allText += line.trim() + "\n";
-    await (page as any).cleanup();
+    return "";
   }
-  await doc.destroy();
+
+  await pdfParse(buffer, { pagerender: renderPage });
 
   const lines = allText
     .split("\n")

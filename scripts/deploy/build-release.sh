@@ -113,7 +113,6 @@ cat > "$RELEASE_DIR/api/package.json" << 'EOF'
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "pdf-parse": "^2.4.5",
-    "pdfjs-dist": "^5.4.296",
     "pg": "^8.16.3",
     "pino": "^9",
     "pino-http": "^10",
