@@ -377,152 +377,171 @@ async function parsePdfInvoice(
   const hasShopData = Object.values(shopDetail).some(v => v && v.length > 0);
   
 
+  // ── ICDC PDF structure (Y-band extraction collapses columns without spaces) ──
+  //
+  // Each product row spans several Y-band lines in one of two layouts:
+  //
+  //  Case A — brand name on a different Y level than the sl_no (most rows):
+  //    "{sl_no}{brand_no}"                              e.g. "15016"
+  //    "{brand_name_part1}"                             e.g. "KING FISHER PREMIUM LAGER"
+  //    "{brand_name_part2}"   (optional)                e.g. "BEER"
+  //    "{product_type}{pack_type}{size}{qty_cases}{qty_bottles}"   e.g. "BeerG12 / 650 ml680"
+  //    "{rate_per_case} /"                              e.g. "1,501.00 /"
+  //    "{btl_rate}"                                     e.g. "125.08"
+  //    "{total}"                                        e.g. "1,02,068.00"
+  //
+  //  Case B — everything on one Y (shorter brand names):
+  //    "{sl_no}{brand_no}{brand_name}{product_type}{pack_type}{size}{qty_cases}{qty_bottles}"
+  //    "{rate_per_case} /"
+  //    "{btl_rate}"
+  //    "{total}"
+  //
+  // Brand numbers in ICDC are always 4 digits; sl_no is 1–4 digits.
+
+  const cleanNum = (s: string | undefined) => (s || "0").replace(/,/g, "").trim();
+  const sizeRe = /\d+(?:\.\d+)?\s*\/\s*\d+(?:\.\d+)?\s*(?:ml|ltrs?|ltr?|litre?s?)/gi;
+
+  // Split concatenated qty string (e.g. "680" → 68 cases, 0 bottles).
+  // qty_bottles is 0–11; tries 2-digit split if last-2 digits are 10–11, else 1-digit split.
+  const splitQty = (digits: string): [number, number] => {
+    if (!digits || digits.length <= 1) return [parseInt(digits) || 0, 0];
+    const last2 = parseInt(digits.slice(-2));
+    if (digits.length >= 3 && last2 >= 10 && last2 <= 11)
+      return [parseInt(digits.slice(0, -2)) || 0, last2];
+    return [parseInt(digits.slice(0, -1)) || 0, parseInt(digits.slice(-1)) || 0];
+  };
+
+  // Parse a "data line" that has product/pack/size/qty all concatenated, e.g. "BeerG12 / 650 ml680".
+  const parseDataLine = (rl: string): { productType: string; packType: string; packSize: string; qtyCases: number; qtyBottles: number } | null => {
+    sizeRe.lastIndex = 0;
+    const sm = sizeRe.exec(rl);
+    if (!sm) return null;
+    const sizeStr = sm[0];
+    const before = rl.substring(0, sm.index).trim();
+    const after  = rl.substring(sm.index + sizeStr.length).trim();
+    const pm = before.match(/^(Beer|IML|IMFL|Wine|RTD|Duty\s*Paid|Duty\s*Free)\s*([A-Z])$/i);
+    let productType = "", packType = "";
+    if (pm) { productType = pm[1].trim(); packType = pm[2].trim(); }
+    else { const lc = before.match(/([A-Z])$/); if (lc) { packType = lc[1]; productType = before.slice(0, -1).trim(); } else productType = before.trim(); }
+    const packSize = sizeStr.replace(/\s+/g, " ").replace(/\s*\/\s*/g, " / ").trim();
+    const [qtyCases, qtyBottles] = splitQty(after.replace(/\D/g, ""));
+    return { productType, packType, packSize, qtyCases, qtyBottles };
+  };
+
+  // Extract brand name + product/pack type from the text before the size in a Case B line.
+  // e.g. "BUDWEISER KING OF BEERSBeerG" → { brandName: "BUDWEISER KING OF BEERS", productType: "Beer", packType: "G" }
+  const parseBefore = (before: string): { brandName: string; productType: string; packType: string } => {
+    const full = before.match(/^(.*?)(Beer|IML|IMFL|Wine|RTD|Duty\s*Paid|Duty\s*Free)\s*([A-Z])$/i);
+    if (full) return { brandName: full[1].trim(), productType: full[2].trim(), packType: full[3].trim() };
+    const alt = before.match(/^(.*?)([A-Z])$/);
+    if (alt) return { brandName: alt[1].trim(), productType: "", packType: alt[2].trim() };
+    return { brandName: before.trim(), productType: "", packType: "" };
+  };
+
+  // An sl_no line starts with 1–4 digits (sl_no) immediately followed by 4 digits (brand_no).
+  const slNoLineRe = /^(\d{1,4})(\d{4})(.*)/;
+  const stopRe = /^(Invoice\s*Qty|Breakage|Shortage|Reverted|Total\s*\(|Net\s*Invoice|Invoice\s*Value|Amount\s*in\s*Words|e-challan|Particulars|Authorized|Sub\s*Total|Grand\s*Total|TIN\s*NO|CST\s*NO|5\/|https?:\/\/)/i;
+
   const parsedOrders: (typeof EMPTY_ORDER)[] = [];
   const skippedLines: string[] = [];
   let i = 0;
 
   while (i < lines.length) {
-    // Trim leading/trailing whitespace — PDF column alignment often adds leading spaces
-    // which would otherwise break the start-of-line (^) anchor in both regexes.
-    const line = lines[i].trim();
-    // Accept brand numbers with 2–6 digits (e.g. "19" for MCDOWELLS, up to "123456")
-    // Allow brand name to be empty on this line (it may continue on the next line)
-    const slNoMatch = line.match(/^(\d{1,4})\s+(\d{2,6})\s*(.*)/);
-    if (!slNoMatch) {
-      i++;
-      continue;
-    }
+    const line = lines[i];
+    if (stopRe.test(line)) { i++; continue; }
 
-    const brandNumber = slNoMatch[2];
-    let rest = slNoMatch[3];
+    const slMatch = line.match(slNoLineRe);
+    if (!slMatch) { i++; continue; }
 
+    const brandNumber = slMatch[2];
+    const inlineSuffix = slMatch[3]; // text after brand_no on the same Y (Case B) or empty (Case A)
     i++;
-    while (
-      i < lines.length &&
-      !lines[i].trim().match(/^\d{1,4}\s+\d{2,6}(\s|$)/) &&
-      !lines[i].trim().match(
-        /^(Duplicate|Original|Total|Grand|Sub|Breakage|Particulars|Sl\.No|Invoice\s*Value|Net\s*Invoice|Amount\s*in\s*Words)/i,
-      )
-    ) {
-      rest += " " + lines[i].trim();
+
+    // Collect all lines belonging to this row until the next sl_no or stop line.
+    const rowLines: string[] = [];
+    while (i < lines.length) {
+      const next = lines[i];
+      if (stopRe.test(next) || next.match(slNoLineRe)) break;
+      rowLines.push(next);
       i++;
     }
 
-    const cleanNum = (s: string | undefined) =>
-      (s || "0").replace(/,/g, "").trim();
+    let brandName = "", productType = "", packType = "", packSize = "";
+    let qtyCases = 0, qtyBottles = 0;
+    let ratePerCase = "", unitRate = "", totalAmount = "";
+    const brandParts: string[] = [];
+    let rateFound = false, unitRateFound = false;
 
-    // Find ALL size occurrences in rest (handles multi-size brand blocks where
-    // the same brand name spans multiple PDF rows with different pack sizes).
-    const primarySizeRe = /\d+\.?\d*\s*[\/x×]\s*\d+\.?\d*\s*(?:ml|ltrs?|ltr?|litre?s?)/gi;
-    const fallbackSizeRe = /\d+\.?\d*\s*(?:ml|ltrs?|ltr?|litre?s?)/gi;
-    let sizeHits = Array.from(rest.matchAll(primarySizeRe));
-    if (sizeHits.length === 0) sizeHits = Array.from(rest.matchAll(fallbackSizeRe));
+    // Case B: the inline suffix (after brand_no) already contains the size.
+    sizeRe.lastIndex = 0;
+    if (inlineSuffix && sizeRe.test(inlineSuffix)) {
+      sizeRe.lastIndex = 0;
+      const sm = sizeRe.exec(inlineSuffix);
+      if (sm) {
+        const before = inlineSuffix.substring(0, sm.index);
+        const after  = inlineSuffix.substring(sm.index + sm[0].length);
+        const p = parseBefore(before);
+        brandName = p.brandName; productType = p.productType; packType = p.packType;
+        packSize = sm[0].replace(/\s+/g, " ").replace(/\s*\/\s*/g, " / ").trim();
+        [qtyCases, qtyBottles] = splitQty(after.replace(/\D/g, ""));
+      }
+    }
 
-    if (sizeHits.length === 0) {
-      skippedLines.push(`brandNo=${brandNumber} rest="${rest.substring(0, 120)}"`);
+    // Parse remaining row lines for: brand name (Case A), data line (Case A), rate, btl rate, total.
+    for (const rl of rowLines) {
+      // Rate/case: a number followed by " /"  e.g. "1,501.00 /"
+      if (!rateFound && /^[\d,]+\.?\d*\s*\/$/.test(rl)) {
+        ratePerCase = cleanNum(rl.replace(/\s*\/$/, "").trim());
+        rateFound = true;
+        continue;
+      }
+      // Btl rate: first pure number after the rate line
+      if (rateFound && !unitRateFound && /^[\d,]+\.?\d*$/.test(rl)) {
+        unitRate = cleanNum(rl);
+        unitRateFound = true;
+        continue;
+      }
+      // Total: next pure number after btl rate
+      if (unitRateFound && !totalAmount && /^[\d,]+\.?\d*$/.test(rl)) {
+        totalAmount = cleanNum(rl);
+        continue;
+      }
+      // Data line (Case A): contains a size pattern  e.g. "BeerG12 / 650 ml680"
+      if (!packSize) {
+        const d = parseDataLine(rl);
+        if (d) {
+          productType = d.productType; packType = d.packType;
+          packSize = d.packSize; qtyCases = d.qtyCases; qtyBottles = d.qtyBottles;
+          continue;
+        }
+      }
+      // Brand name text (Case A): non-empty lines before the data line and before rate
+      if (!packSize && rl.trim() && !rateFound) brandParts.push(rl.trim());
+    }
+
+    // In Case A, brand name is built from the collected text lines above the data line.
+    if (!brandName && brandParts.length > 0) brandName = brandParts.join(" ").trim();
+
+    if (!packSize) {
+      skippedLines.push(`brand=${brandNumber} inline="${inlineSuffix.substring(0, 60)}"`);
       continue;
     }
 
-    // Helper: extract brand name, product type, pack type from a prefix string.
-    const extractBrandTypePack = (prefix: string): { brandName: string; productType: string; packType: string } => {
-      const full = prefix.match(/^(.+?)\s+(Beer|IML|IMFL|Wine|RTD|Duty\s*Paid|Duty\s*Free)\s+([A-Z])\s*$/i);
-      if (full) return { brandName: full[1].trim(), productType: full[2].trim(), packType: full[3].trim() };
-      const alt = prefix.match(/^(.+?)\s+([A-Z])\s*$/);
-      if (alt) return { brandName: alt[1].trim(), productType: "", packType: alt[2].trim() };
-      return { brandName: prefix.trim(), productType: "", packType: "" };
-    };
-
-    // Helper: extract type/pack from a mid-segment (between sizes).
-    const extractTypePack = (seg: string): { productType: string; packType: string } => {
-      const m = seg.match(/(Beer|IML|IMFL|Wine|RTD|Duty\s*Paid|Duty\s*Free)\s+([A-Z])\s*$/i);
-      if (m) return { productType: m[1].trim(), packType: m[2].trim() };
-      const pm = seg.match(/([A-Z])\s*$/);
-      if (pm) return { productType: "", packType: pm[1].trim() };
-      return { productType: "", packType: "" };
-    };
-
-    // Helper: parse qty/rate/total from a number segment.
-    const parseNums = (seg: string): { qtyCases: number; qtyBottles: number; ratePerCase: string; unitRate: string; totalAmt: string } => {
-      const nums = (seg.match(/[\d,]+\.?\d*/g) || []).map(cleanNum);
-      if (nums.length >= 4) {
-        return { qtyCases: parseInt(nums[0]) || 0, qtyBottles: parseInt(nums[1]) || 0, ratePerCase: nums[2], unitRate: nums[nums.length - 2], totalAmt: nums[nums.length - 1] };
-      } else if (nums.length === 3) {
-        return { qtyCases: parseInt(nums[0]) || 0, qtyBottles: 0, ratePerCase: nums[1], unitRate: "0", totalAmt: nums[2] };
-      }
-      return { qtyCases: 0, qtyBottles: 0, ratePerCase: "0", unitRate: "0", totalAmt: "0" };
-    };
-
-    if (sizeHits.length === 1) {
-      // ── Single-size row (original logic) ──────────────────────────────────
-      const sizeStr = sizeHits[0][0];
-      const sizeIdx = sizeHits[0].index!;
-      const packSize = sizeStr.replace(/\s+/g, " ").replace(/\s*[x×]\s*/i, " / ").trim();
-      const beforeSize = rest.substring(0, sizeIdx).trim();
-      const afterSize  = rest.substring(sizeIdx + sizeStr.length).trim();
-
-      const { brandName, productType, packType } = extractBrandTypePack(beforeSize);
-      const { qtyCases, qtyBottles, ratePerCase, unitRate, totalAmt } = parseNums(afterSize);
-
-      parsedOrders.push({
-        ...EMPTY_ORDER,
-        brandNumber,
-        brandName: brandName.replace(/\s+/g, " ").trim(),
-        productType,
-        packType,
-        packSize,
-        qtyCasesDelivered: qtyCases,
-        qtyBottlesDelivered: qtyBottles,
-        ratePerCase,
-        unitRatePerBottle: unitRate,
-        totalAmount: totalAmt,
-        invoiceDate,
-        icdcNumber,
-      });
-    } else {
-      // ── Multi-size brand block (e.g. same brand in 48/180ml, 24/375ml, 12/750ml) ──
-      // Extract the shared brand name from the text before the FIRST size.
-      const textBeforeFirst = rest.substring(0, sizeHits[0].index!).trim();
-      const { brandName: commonBrandName, productType: commonProductType } = extractBrandTypePack(textBeforeFirst);
-
-      for (let s = 0; s < sizeHits.length; s++) {
-        const hit      = sizeHits[s];
-        const sizeStr  = hit[0];
-        const sizeStart = hit.index!;
-        const sizeEnd   = sizeStart + sizeStr.length;
-
-        // Segment before this size (from end of previous size, or start of rest for s=0)
-        const prevEnd  = s === 0 ? 0 : sizeHits[s - 1].index! + sizeHits[s - 1][0].length;
-        const segBefore = rest.substring(prevEnd, sizeStart).trim();
-
-        // Segment after this size (until start of next size, or end of rest)
-        const nextStart = s + 1 < sizeHits.length ? sizeHits[s + 1].index! : rest.length;
-        const segAfter  = rest.substring(sizeEnd, nextStart).trim();
-
-        // Extract type/pack from the segment preceding this size
-        const { productType: subType, packType: subPack } = s === 0
-          ? { productType: commonProductType, packType: extractBrandTypePack(segBefore).packType }
-          : extractTypePack(segBefore);
-
-        const packSize = sizeStr.replace(/\s+/g, " ").replace(/\s*[x×]\s*/i, " / ").trim();
-        const { qtyCases, qtyBottles, ratePerCase, unitRate, totalAmt } = parseNums(segAfter);
-
-        parsedOrders.push({
-          ...EMPTY_ORDER,
-          brandNumber,
-          brandName: commonBrandName.replace(/\s+/g, " ").trim(),
-          productType: subType,
-          packType: subPack,
-          packSize,
-          qtyCasesDelivered: qtyCases,
-          qtyBottlesDelivered: qtyBottles,
-          ratePerCase,
-          unitRatePerBottle: unitRate,
-          totalAmount: totalAmt,
-          invoiceDate,
-          icdcNumber,
-        });
-      }
-    }
+    parsedOrders.push({
+      ...EMPTY_ORDER,
+      brandNumber,
+      brandName: brandName.replace(/\s+/g, " ").trim(),
+      productType,
+      packType,
+      packSize,
+      qtyCasesDelivered: qtyCases,
+      qtyBottlesDelivered: qtyBottles,
+      ratePerCase,
+      unitRatePerBottle: unitRate,
+      totalAmount,
+      invoiceDate,
+      icdcNumber,
+    });
   }
 
   if (parsedOrders.length === 0) {
