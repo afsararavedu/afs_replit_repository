@@ -211,7 +211,17 @@ async function parsePdfInvoice(
   // outside its bundled shim environment.
   // pdf-parse v1.1.1's index.js runs a test file on import (ENOENT in prod).
   // Import the lib directly to bypass the test runner.
-  const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
+  //
+  // Use createRequire instead of dynamic import() — in esbuild ESM output,
+  // import().default can return undefined for CJS modules in some Node.js
+  // versions, causing "pdfParse is not a function" at runtime on EC2.
+  // createRequire gives the raw module.exports (the PDF function) reliably.
+  const { createRequire } = await import("module");
+  const _req = createRequire(import.meta.url);
+  const pdfParse = _req("pdf-parse/lib/pdf-parse.js") as (
+    buf: Buffer,
+    opts?: Record<string, unknown>,
+  ) => Promise<{ text: string; numpages: number }>;
 
   // Extract text in natural content-stream order (left→right within each
   // Y band, top→bottom page by page). The pagerender callback receives the
