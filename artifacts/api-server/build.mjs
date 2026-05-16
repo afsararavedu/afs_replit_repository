@@ -93,6 +93,7 @@ async function buildAll() {
       "*.node",
       "connect-pg-simple",
       "pdf-parse",
+      "pdf-parse/*",
       "pdfjs-dist",
       "sharp",
       "better-sqlite3",

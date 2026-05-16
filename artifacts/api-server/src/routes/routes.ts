@@ -209,7 +209,9 @@ async function parsePdfInvoice(
   // pdfjs-dist is NOT loaded directly here — that avoids the "DOMMatrix is
   // not defined" / "use legacy build" errors that arise when loading pdfjs
   // outside its bundled shim environment.
-  const pdfParse = (await import("pdf-parse")).default;
+  // pdf-parse v1.1.1's index.js runs a test file on import (ENOENT in prod).
+  // Import the lib directly to bypass the test runner.
+  const pdfParse = (await import("pdf-parse/lib/pdf-parse.js")).default;
 
   // Extract text in natural content-stream order (left→right within each
   // Y band, top→bottom page by page). The pagerender callback receives the
