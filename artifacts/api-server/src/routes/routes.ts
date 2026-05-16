@@ -204,12 +204,14 @@ async function parsePdfInvoice(
   buffer: Buffer,
 ): Promise<{ orders: (typeof EMPTY_ORDER)[]; shopDetail: Record<string, string> | null }> {
   // Load pdfjs-dist dynamically so esbuild externalises it (avoids bundling the
-  // 5 MB PDF engine into the single-file bundle).  pdfjs-dist v3+ moved away
-  // from the legacy/ subdirectory — use the top-level build/ path instead.
+  // 5 MB PDF engine into the single-file bundle).  Use the legacy/ build which
+  // is the correct entry point for Node.js environments across all pdfjs-dist
+  // versions (v2–v5).  The non-legacy build is browser-only and prints a
+  // warning + may fail in Node.js.
   const { createRequire } = await import("node:module");
   const _require = createRequire(import.meta.url);
-  const pdfjsPath   = _require.resolve("pdfjs-dist/build/pdf.mjs");
-  const workerPath  = _require.resolve("pdfjs-dist/build/pdf.worker.mjs");
+  const pdfjsPath  = _require.resolve("pdfjs-dist/legacy/build/pdf.mjs");
+  const workerPath = _require.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs");
   const pdfjs = await import(pdfjsPath);
   pdfjs.GlobalWorkerOptions.workerSrc = `file://${workerPath}`;
 
