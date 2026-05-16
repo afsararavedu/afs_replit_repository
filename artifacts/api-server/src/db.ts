@@ -108,8 +108,12 @@ export const db = drizzle(pool, { schema });
 // drizzle-kit is NOT needed at runtime — only the committed .sql files are.
 {
   const here = dirname(fileURLToPath(import.meta.url));
-  const prodMigrationsDir = join(here, "../migrations");          // EC2 bundle
-  const devMigrationsDir  = join(here, "../../lib/db/migrations"); // dev / tsx
+  // Compiled bundle: artifacts/api-server/dist/index.mjs  → here = …/dist/
+  //   prodMigrationsDir: …/dist/../migrations  = …/api-server/migrations  (EC2 layout)
+  //   devMigrationsDir:  …/dist/../../../lib/db/migrations
+  //                    = workspace-root/lib/db/migrations               (dev layout)
+  const prodMigrationsDir = join(here, "../migrations");            // EC2 bundle
+  const devMigrationsDir  = join(here, "../../../lib/db/migrations"); // dev (3 levels up from dist/)
 
   const migrationsDir = existsSync(prodMigrationsDir) ? prodMigrationsDir
                       : existsSync(devMigrationsDir)  ? devMigrationsDir
