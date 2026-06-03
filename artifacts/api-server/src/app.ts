@@ -31,9 +31,19 @@ app.use(
     },
   }),
 );
+// CORS_ORIGIN: comma-separated list of allowed origins, or "*" for all.
+// Defaults to true (mirror request origin) which is fine for same-host setups.
+// On Hostinger, set this to your frontend domain, e.g.:
+//   CORS_ORIGIN=https://yourdomain.com,http://yourdomain.com
+const corsOrigin: string | string[] | boolean = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN === "*"
+    ? "*"
+    : process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
+  : true;
+
 app.use(
   cors({
-    origin: true,
+    origin: corsOrigin,
     credentials: true,
     exposedHeaders: ["set-cookie"],
   }),

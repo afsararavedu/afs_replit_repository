@@ -1,0 +1,62 @@
+# /etc/systemd/system/brr-api.service
+#
+# Runs the BRR Liquor Soft api-server on Hostinger KVM 2 VPS.
+# Reads its environment from /etc/brr/brr-api.env (mode 600, owned by root).
+#
+# Install:
+#   sudo cp deploy/hostinger/brr-api.service.example /etc/systemd/system/brr-api.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now brr-api.service
+#
+# Inspect:
+#   systemctl status brr-api
+#   journalctl -u brr-api -f
+#
+# Multi-tenant setup — one service per shop:
+#   sudo cp deploy/hostinger/brr-api.service.example /etc/systemd/system/brr-api-balaji.service
+#   sudo cp deploy/hostinger/brr-api.service.example /etc/systemd/system/brr-api-jyothi.service
+#   Then edit each file: change EnvironmentFile and the Description.
+#   Give each shop a different PORT in its .env (8080, 8081, 8082, ...).
+
+[Unit]
+Description=BRR Liquor Soft API server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# Where the deployed code lives on Hostinger VPS.
+# Expected layout (created by build-release.sh):
+#   /opt/brr/repo/                           <- git checkout
+#   /opt/brr/repo/release/api/dist/index.mjs <- esbuild bundle
+#   /opt/brr/repo/release/api/migrations/    <- SQL migration files
+#   /opt/brr/repo/release/api/node_modules/  <- runtime deps
+#
+# WorkingDirectory points at the source tree so node's module resolver
+# finds the persistent node_modules directory.
+WorkingDirectory=/opt/brr/repo/artifacts/api-server
+
+# Auto-migration runs inside the api-server itself (db.ts top-level await
+# calls drizzle-orm migrate() on every startup). No ExecStartPre needed.
+ExecStart=/usr/bin/node --enable-source-maps /opt/brr/repo/release/api/dist/index.mjs
+
+EnvironmentFile=/etc/brr/brr-api.env
+
+# Run as an unprivileged user that owns /opt/brr.
+User=brr
+Group=brr
+
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Light hardening.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

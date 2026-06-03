@@ -21,6 +21,16 @@ if (!process.env.DATABASE_URL) {
 // Defaults to "public" when not set (standard single-tenant behaviour).
 export const DB_SCHEMA = process.env.DB_SCHEMA || "public";
 
+// DIRECT_DATABASE_URL (optional) points to the PostgreSQL server directly
+// (port 5432) and is used only for DDL operations (CREATE SCHEMA) that
+// PgBouncer in transaction mode does not support.  When not set, the
+// regular DATABASE_URL is used — which is fine for RDS / direct Postgres
+// connections.  On Supabase, set this to the "Direct connection" URL
+// (Session Pooler or direct port 5432) to avoid "prepared statement already
+// exists" errors during schema bootstrap.
+const BOOTSTRAP_URL =
+  process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL!;
+
 // ── Schema bootstrap (top-level await) ────────────────────────────────────────
 //
 // WHY: The session store (connect-pg-simple) runs CREATE TABLE IF NOT EXISTS
@@ -38,7 +48,7 @@ export const DB_SCHEMA = process.env.DB_SCHEMA || "public";
 // because CREATE SCHEMA does not use search_path.
 if (DB_SCHEMA !== "public") {
   const bootstrapClient = new Client({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: BOOTSTRAP_URL,
     ssl: { rejectUnauthorized: false },
   });
   try {

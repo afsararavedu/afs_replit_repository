@@ -1,0 +1,139 @@
+# /etc/nginx/conf.d/brr.conf
+#
+# HTTP-only reverse-proxy + static-file config for BRR Liquor Soft
+# on Hostinger KVM 2 VPS with Supabase backend.
+#
+# Layout assumed by this file:
+#   /var/www/brr-web/     -> contents of release/web/ (Vite static build)
+#   127.0.0.1:8080        -> brr-api systemd service (single tenant)
+#
+# After editing: `sudo nginx -t && sudo systemctl reload nginx`
+#
+# ── SINGLE TENANT SETUP ──────────────────────────────────────────────────────
+# Use this block if you run one shop (one API service on port 8080).
+# Comment out this entire server block and use MULTI-TENANT below if you
+# run multiple shops.
+
+server {
+    listen 80;
+    listen [::]:80;
+
+    # Replace _ with your actual domain or VPS IP when ready.
+    # e.g.  server_name yourdomain.com www.yourdomain.com;
+    server_name _;
+
+    # Allow large Excel/PDF uploads (multer + xlsx routes accept up to 10mb).
+    client_max_body_size 16m;
+
+    # ---- API: forward /api/* to the Node.js service on loopback ----
+    location /api/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+
+        proxy_pass_request_headers on;
+        proxy_redirect off;
+
+        # Long-running requests (PDF/Excel parsing of large files).
+        proxy_read_timeout 120s;
+        proxy_send_timeout 120s;
+    }
+
+    # ---- Static frontend with SPA fallback ----
+    root /var/www/brr-web;
+    index index.html;
+
+    # Fingerprinted Vite assets — cache aggressively.
+    location /assets/ {
+        try_files $uri =404;
+        access_log off;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # The HTML shell must NOT be cached (ensures users always get latest JS).
+    location = /index.html {
+        add_header Cache-Control "no-store";
+        try_files $uri =404;
+    }
+
+    # SPA fallback — send all unknown paths to index.html (React Router).
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+
+
+# ── MULTI-TENANT SETUP ───────────────────────────────────────────────────────
+# Uncomment and adapt the blocks below when running multiple shops.
+# Each shop gets its own subdomain and API service on a different port.
+#
+# Prerequisites:
+#   - DNS: point shop1.yourdomain.com and shop2.yourdomain.com to your VPS IP
+#   - Create separate systemd services (brr-api-balaji, brr-api-jyothi, ...)
+#     each with its own .env file and PORT (8080, 8081, ...)
+#
+# server {
+#     listen 80;
+#     server_name balaji.yourdomain.com;
+#     client_max_body_size 16m;
+#
+#     location /api/ {
+#         proxy_pass http://127.0.0.1:8080;   # PORT for balaji service
+#         proxy_http_version 1.1;
+#         proxy_set_header Host              $host;
+#         proxy_set_header X-Real-IP         $remote_addr;
+#         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_read_timeout 120s;
+#         proxy_send_timeout 120s;
+#     }
+#
+#     root /var/www/brr-web;
+#     index index.html;
+#
+#     location /assets/ {
+#         try_files $uri =404;
+#         access_log off;
+#         expires 1y;
+#         add_header Cache-Control "public, immutable";
+#     }
+#
+#     location = /index.html { add_header Cache-Control "no-store"; try_files $uri =404; }
+#     location / { try_files $uri $uri/ /index.html; }
+# }
+#
+# server {
+#     listen 80;
+#     server_name jyothi.yourdomain.com;
+#     client_max_body_size 16m;
+#
+#     location /api/ {
+#         proxy_pass http://127.0.0.1:8081;   # PORT for jyothi service
+#         proxy_http_version 1.1;
+#         proxy_set_header Host              $host;
+#         proxy_set_header X-Real-IP         $remote_addr;
+#         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+#         proxy_set_header X-Forwarded-Proto $scheme;
+#         proxy_read_timeout 120s;
+#         proxy_send_timeout 120s;
+#     }
+#
+#     root /var/www/brr-web;
+#     index index.html;
+#
+#     location /assets/ {
+#         try_files $uri =404;
+#         access_log off;
+#         expires 1y;
+#         add_header Cache-Control "public, immutable";
+#     }
+#
+#     location = /index.html { add_header Cache-Control "no-store"; try_files $uri =404; }
+#     location / { try_files $uri $uri/ /index.html; }
+# }

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Build a complete production release of BRR Liquor Soft (api-server + brr-web).
+# Works on AWS EC2 and Hostinger KVM 2 VPS (both run Linux x86-64).
 #
 # Output layout (under ./release/):
 #   release/
