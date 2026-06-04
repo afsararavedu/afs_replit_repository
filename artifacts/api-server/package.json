@@ -29,7 +29,8 @@
     "pino": "^9",
     "pino-http": "^10",
     "xlsx": "^0.18.5",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@supabase/supabase-js": "^2.0.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
